@@ -124,8 +124,18 @@ def plot_st(lat, lon, stations, all_plot = True, times = "none_passed", flag_bad
 def distance(lat1, lon1, lat2, lon2):
     p = 0.017453292519943295
     hav = 0.5 - cos((lat2-lat1)*p)/2 + cos(lat1*p)*cos(lat2*p) * (1-cos((lon2-lon1)*p)) / 2
-    return 12742 * asin(sqrt(hav))
+    return 12742 * asin(sqrt(hav)) ## Returns in km
 
 def closest(data, v):
-    return min(data, key=lambda p: distance(v['Lat'],v['Lon'],p['Lat'],p['Lon']))
+    mn = min(data, key=lambda p: distance(v['Lat'],v['Lon'],p['Lat'],p['Lon']))
+    dist = distance(v['Lat'],v['Lon'], mn['Lat'], mn['Lon'])
+    print("The closest station is", dist, "km away." )
+    return mn
+
+def closest_srch(data, v):
+    mn = min(data, key=lambda p: distance(v['Lat'],v['Lon'],p['Lat'],p['Lon']))
+    dist = distance(v['Lat'],v['Lon'], mn['Lat'], mn['Lon'])
+    mn = pd.DataFrame([mn])
+    mn['dist_km'] = dist
+    return mn
 
