@@ -120,7 +120,8 @@ def plot_st(lat, lon, stations, all_plot = True, times = "none_passed", flag_bad
         plt.ylabel('')
         plt.title(col)
         plt.xticks(rotation = 45)
-
+        
+## Finding stations
 def distance(lat1, lon1, lat2, lon2):
     p = 0.017453292519943295
     hav = 0.5 - cos((lat2-lat1)*p)/2 + cos(lat1*p)*cos(lat2*p) * (1-cos((lon2-lon1)*p)) / 2
@@ -139,3 +140,75 @@ def closest_srch(data, v):
     mn['dist_km'] = dist
     return mn
 
+### Loading Fire files
+def load_file(date,layer='perimeter',handle_multi=False,
+              only_lf=False,area_lim=5,show_progress=False):
+    '''
+    loads in snapshot file based on input date and layer
+    
+    INPUTS:
+        
+        date (str): string in the form YYYYMMDDAM (or PM)
+        layer (str): either "perimeter", "fireline", or "newfirepix"
+        handle_multi (bool): drop fire ids in snapshot data that have several polygons
+                             associated with them. these are usually several close together
+                             static fires that should be filtered out.
+        only_lf (bool): only display fires with polygons > area_lim
+        area_lim (int): value in km2 to use as lower threshold for largefire filter
+        show_progress (bool): print out the file's date once it's loaded.
+                              this is helpful when using the function in a loop.
+       This function was authored by Eli. 
+    
+    '''
+    
+    base_path = '/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/CONUS/2019/Snapshot/'
+    full_path = os.path.join(base_path,date)
+    try: 
+        gdf = gpd.read_file(full_path,layer=layer)
+        if show_progress:
+            print(date,'loaded')
+    except: 
+        print('could not load file',full_path)
+        return None
+    
+    if handle_multi:
+        multi_geoms = gdf.loc[gdf.geometry.geometry.type=='MultiPolygon'].index
+        gdf['NumPolygons'] = gdf.loc[multi_geoms,'geometry'].apply(lambda x: len(list(x)))
+        too_many_polygons = gdf[gdf['NumPolygons']>4].index
+        gdf.drop(too_many_polygons,inplace=True)
+    
+    if only_lf:
+        gdf = gdf[gdf['farea']>area_lim]
+    
+    return gdf
+
+def prep_gdf(date = '20191031PM',handle_multi=True,only_lf=True,area_lim=5, index ='fireID',inplace=True):
+    gdf = load_file('20191031PM',handle_multi=True,only_lf=True,area_lim=5)
+    gdf.set_index(index, inplace)
+    print("Total number of fires:",len(gdf.index.unique()))
+    print("These were the files availible at" + date + " and larger than", area_lim, "found at CONUS")
+    
+    gdf_test.to_crs('EPSG:4326')
+    print("Setting projection to EPSG:4326")
+    gdf_test['lon'] = gdf_test.centroid.x
+    gdf_test['lat'] = gdf_test.centroid.y
+    
+    return(gdf)
+
+def fire_search (gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
+    
+    st_dict = stations[['Lat', 'Lon']].to_dict('records')
+    small_map = gdf[["lon", 'lat']]
+
+    fire_st_coloc = []
+    
+    for i, val in enumerate(small_map.index):
+        foi = {'Lat': small_map.lat.iloc[i], 'Lon': small_map.lon.iloc[i]}
+        cls_st_srch = closest_srch(st_dict, foi)
+        cls_st_srch['fireID'] = val
+        fire_st_coloc.append([cls_st_srch.Lat[0], cls_st_srch.Lon[0], cls_st_srch.dist_km[0], cls_st_srch.Origin_lat[0], cls_st_srch.Origin_lon[0], cls_st_srch.fireID[0]])
+        
+    df = pd.DataFrame(fire_st_coloc, columns = ["Lat", "Lon", "dist_km","Origin_lat", "Origin_lon", "fireID"])
+    #df = pd.DataFrame(fire_st_coloc)
+    df_small = df[df.dist_km <= dist_max_km]
+    return(df_small)
