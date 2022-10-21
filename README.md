@@ -11,10 +11,9 @@ To use these functions on anouther MAAP account, run the following commands:
 - Then recreate the package dependencies with `conda env create -f fire_weather_vis/fwiVis.yml --prefix /path/to/directory` or `mamba env create -f fwiVis/fwiVis.yml --prefix /path/to/directory`.
   -  __Note:__ In MAAP, custom environments will be deleted. To create an environment that persists between sessions, replace `/path/to/directory` with a path within your home directory in MAAP, like `~/myenvs/`. For more information on MAAP custom environments, see [this quickstart guide](https://docs.google.com/document/d/1YSE0PcZV7N7VwCEMcay0HYxsqauqsa9Zl-DiBq-d2mA/edit?usp=sharing), or the [MAAP documentation](https://docs.maap-project.org/en/latest/index.html). 
 - Checkout the new env with `conda activate /path/to/directory`
-- Make sure that the python kernel interacts with the env by running  `python -m ipykernel install --user --name fwiVis --display-name "Python (fwiVis)`, and swapping your notebook kernel to the one you just created. 
-
-- now try running the note book at `baes-fwi-vis/fwi_vis_utils.ipynb`
-- If the fwiVis package cannot import, you may also need to navigate to `/my-public-bucket/fwiVis/base-fwi-vis/` and run `pip install .`
+- Make sure that the python kernel interacts with the env by running  `python -m ipykernel install --user --name fwiVis --display-name "Python (fwiVis)"`, and swapping your notebook kernel to the one you just created. 
+- Navigate to `/my-public-bucket/fwiVis/base-fwi-vis/` and run `pip install .`
+- Now run the notebook at `baes-fwi-vis/fwi_vis_utils.ipynb`
 
 # Collborating
 
