@@ -8,9 +8,10 @@ This is package of fucntions to quickly visualize fire polygons and weather stat
 To use these functions on anouther MAAP account, run the following commands: 
 
 - Within your `/my-public-bucket/` path, run `git clone https://github.com/mccabete/fwiVis.git`
-- Then recreate the package dependencies with `conda env create -f fire_weather_vis/fwiVis.yml` or `mamba env create -f fire_weather_vis/fwiVis.yml`
-- checkout the new env with `conda activate /projects/myenvs/fireatlas_oct4`
-- Make sure that the python kernel interacts with the env by running  `python -m ipykernel install --user --name /projects/myenvs/fireatlas_oct4 --display-name "Python (fwiVis)`, and swapping your notebook kernel to the one you just created. 
+- Then recreate the package dependencies with `conda env create -f fire_weather_vis/fwiVis.yml --prefix /path/to/directory` or `mamba env create -f fire_weather_vis/fwiVis.yml --prefix /path/to/directory`.
+  -  __Note:__ In MAAP, custom environments will be deleted. To create an environment that persists between sessions, replace `/path/to/directory` with a path within your home directory in MAAP, like `~/myenvs/`. For more information on MAAP custom environments, see [this quickstart guide](https://docs.google.com/document/d/1YSE0PcZV7N7VwCEMcay0HYxsqauqsa9Zl-DiBq-d2mA/edit?usp=sharing), or the [MAAP documentation](https://docs.maap-project.org/en/latest/index.html). 
+- checkout the new env with `conda activate  /path/to/directory`
+- Make sure that the python kernel interacts with the env by running  `python -m ipykernel install --user --name fwiVis --display-name "Python (fwiVis)`, and swapping your notebook kernel to the one you just created. 
 
 - now try running the note book at `baes-fwi-vis/fwi_vis_utils.ipynb`
 - If the fwiVis package cannot import, you may also need to navigate to `/my-public-bucket/fire_weather_vis/base-fwi-vis/` and run `pip install .`
