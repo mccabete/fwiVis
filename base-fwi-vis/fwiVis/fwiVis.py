@@ -137,6 +137,7 @@ def closest_srch(data, v):
     mn = min(data, key=lambda p: distance(v['Lat'],v['Lon'],p['Lat'],p['Lon']))
     dist = distance(v['Lat'],v['Lon'], mn['Lat'], mn['Lon'])
     mn = pd.DataFrame([mn])
+    print("The closest station is", dist, "km away." )
     mn['dist_km'] = dist
     return mn
 
@@ -161,7 +162,7 @@ def load_file(date,layer='perimeter',handle_multi=False,
     
     '''
     
-    base_path = '/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/CONUS/2019/Snapshot/'
+    base_path = '/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/WesternUS/2019/Snapshot/'
     full_path = os.path.join(base_path,date)
     try: 
         gdf = gpd.read_file(full_path,layer=layer)
@@ -184,18 +185,41 @@ def load_file(date,layer='perimeter',handle_multi=False,
 
 def prep_gdf(date = '20191031PM',handle_multi=True,only_lf=True,area_lim=5, index ='fireID',inplace=True):
     gdf = load_file('20191031PM',handle_multi=True,only_lf=True,area_lim=5)
-    gdf.set_index(index, inplace)
-    print("Total number of fires:",len(gdf.index.unique()))
-    print("These were the files availible at" + date + " and larger than", area_lim, "found at CONUS")
-    
-    gdf_test.to_crs('EPSG:4326')
-    print("Setting projection to EPSG:4326")
+    gdf.set_index('fireID',inplace=True)
+
+### Get explore map to display lat and lon 
+    gdf_test = gdf ## Default crs seems to be easting and westing in just US. reproject to lat vs lon
+
+    gdf_test = gdf_test.to_crs('EPSG:4326')
     gdf_test['lon'] = gdf_test.centroid.x
     gdf_test['lat'] = gdf_test.centroid.y
-    
-    return(gdf)
 
-def fire_search (gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
+    gdf_test["t"] = gdf_test["t"].astype("str")
+    gdf_test["t_st"] = gdf_test["t_st"].astype("str")
+    gdf_test["t_ed"] = gdf_test["t_ed"].astype("str")
+
+    #gdf = load_file(date = '20191031PM',handle_multi=True,only_lf=True,area_lim=5)
+    #gdf.set_index(index, inplace)
+    #print("Total number of fires:",len(gdf.index.unique()))
+    #print("These were the files availible at " + date + " and larger than", area_lim, " found at CONUS")
+    
+    #gdf_test = gdf.to_crs('EPSG:4326')
+    #print("Setting projection to EPSG:4326")
+    #gdf_test['lon'] = gdf.centroid.x
+    #gdf_test['lat'] = gdf.centroid.y
+
+    
+    
+    #print("Setting fireID as index")
+    
+    #gdf_test["t"] = gdf_test["t"].astype("str")
+    #gdf_test["t_st"] = gdf_test["t_st"].astype("str")
+    #gdf_test["t_ed"] = gdf_test["t_ed"].astype("str")
+    
+    return(gdf_test)
+    
+
+def fire_search(gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
     
     st_dict = stations[['Lat', 'Lon']].to_dict('records')
     small_map = gdf[["lon", 'lat']]
@@ -212,3 +236,36 @@ def fire_search (gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
     #df = pd.DataFrame(fire_st_coloc)
     df_small = df[df.dist_km <= dist_max_km]
     return(df_small)
+
+
+def load_large_fire(fireID):
+    lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/WesternUS/2019/Largefire/*' + fireID + '*') ## ID of William's Flats
+    lf_ids = list(set([file.split('Largefire/')[1].split('_')[0] for file in lf_files])) 
+    largefire_dict = dict.fromkeys(lf_ids)
+    
+    for lf_id in lf_ids:
+         most_recent_file = [file for file in lf_files if lf_id in file][-1]
+         largefire_dict[lf_id] = most_recent_file
+    
+    gdf = pd.concat([gpd.read_file(file,layer='perimeter') for key, file in largefire_dict.items()], 
+                   ignore_index=True)
+    gdf = gdf.to_crs('EPSG:4326')
+    gdf['lon'] = gdf.centroid.x
+    gdf['lat'] = gdf.centroid.y
+    return gdf
+
+def fr_st_merge(gdf, dat, sub= True):
+    if(sub):
+        st_dat = dat[(dat.time >= min(gdf.t)) &  (dat.time <= max(gdf.t))]
+        st_dat = st_dat.rename(columns = {"time":"t"})
+    else:
+        st_dat = dat
+            
+    full = pd.merge(gdf,st_dat, on = "t", how = "outer")
+    full = full.sort_values(by = ['t']) ## Need to sort or timeseries jumps around
+    full['t'] = full['t'].astype('datetime64[ns]') 
+    return(full)
+
+#def fire_quickplot(fireID):
+#    fr = load_large_fire(fireID)
+    
