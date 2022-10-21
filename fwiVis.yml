@@ -1,4 +1,4 @@
-name: /projects/myenvs/fireatlas_oct4
+name: 
 channels:
   - conda-forge
   - defaults
