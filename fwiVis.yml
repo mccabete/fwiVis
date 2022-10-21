@@ -304,4 +304,3 @@ dependencies:
   - zstd=1.5.2=h6239696_4
   - pip:
     - fwivis==0.1
-prefix: /projects/myenvs/fireatlas_oct4
