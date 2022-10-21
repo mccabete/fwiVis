@@ -21,6 +21,16 @@ from folium import plugins
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 
 def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpContinuous"):
+    '''
+   Takes a list of stations at a files path. Subsets by a specific interpolation type, and then parses the paths to get station ID's lat, and lon.  
+    
+    INPUTS:
+        
+        files (list[str]): A list of station data paths from a directory. 
+        st_id_map (panadas DF): sheet that maps station ID's to lat and lon. Found at ref_data/isd-history.csv
+        inter_type (str): Interpolation type. Options availible are described in the ref_data README. 
+    
+    '''
     file_inter = []
     for path in files:
         if inter_type in path:
@@ -58,7 +68,16 @@ def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpCon
    
     return(pd.DataFrame(df))
 
+
 def hour_fix (hr):
+    '''
+    Appends a leading 0 to hours for date formatting 
+    
+    INPUTS:
+        
+        hr (str): An hour digit from 0-24
+    
+    '''
     small_hr = ["0","1","2","3","4","5","6","7","8","9"]
     append = ""
     
@@ -73,6 +92,14 @@ def hour_fix (hr):
 #'s3://veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/727850-24157.spline.HourlyFWIFromHourlyInterpContinuous.csv'
 
 def date_convert(dat_time):
+    '''
+    Takes a data frame with the columns "YYYY", "MM", "DD", and "HH" and converts those columns into a single datetime column. 
+    
+    INPUTS:
+        
+        dat_time (DataFrame):  A data frame with the columns "YYYY", "MM", "DD", and "HH". Hours do not have leading zeros. 
+    
+    '''
     dat_time.HH = dat_time.HH.astype('int') # Drop #.0
     dat_time.HH = dat_time.HH.astype('str')
     dat_time['HH_format'] = dat_time.HH.apply(hour_fix)
@@ -81,6 +108,17 @@ def date_convert(dat_time):
     return(dat_time)
 
 def get_st(lat, lon, stations, flag_bad = True):
+    '''
+    Read in data from a station at a lat long. Optionally, set data where interpolation may be too far from data as NaN. 
+    
+    INPUTS:
+        
+        lat (str):  A  lattitude
+        lon (str):  A longitude
+        stations (DataFrame): a dataframe as outputted by st_avail. A dataframe with columns for station lat, lon, and ID. 
+        flag_bad (bool): Filter out data where the difference in the observation and the interpolation is over 20. This could indicate that the interpolation is way off. Default to True. 
+    
+    '''
         
     st = stations.loc[(stations.Lat == lat) & (stations.Lon == lon)]
     #dat = pd.read_csv("s3://veda-data-store-staging/EIS/other/station-FWI/20000101.20220907.hrlyInterp/FWI/727970-94240.spline.DailyFWIfromHourlyInterp.csv")
@@ -93,8 +131,21 @@ def get_st(lat, lon, stations, flag_bad = True):
     
     return(dat)
 
-def plot_st(lat, lon, stations, all_plot = True, times = "none_passed", flag_bad = True, time_start = "default", time_end = "default"):
+def plot_st(lat, lon, stations, times = "none_passed", flag_bad = True, time_start = "default", time_end = "default"):
+    '''
+    Plots station variables for a given station. 
     
+    INPUTS:
+        
+        lat (str):  A  lattitude
+        lon (str):  A longitude
+        stations (DataFrame): a dataframe as outputted by st_avail. A dataframe with columns for station lat, lon, and ID. 
+        flag_bad (bool): Filter out data where the difference in the observation and the interpolation is over 20. This could indicate that the interpolation is way off. Default to True. 
+        times (dateTime): A sereis of dateTimes, the time axis. Default to "none_passed", where function will generate one based on assumptions about when the record starts/ stops.
+        time_start (dateTime): For subseting times in the plot to focus on. Mush either be default or changed with time_end. 
+        time_end (dateTime): For subseting times in the plot to focus on. Mush either be default or changed with time_start.
+    
+    '''
     st = stations.loc[(stations.Lat == lat) & (stations.Lon == lon)]
     #dat = pd.read_csv("s3://veda-data-store-staging/EIS/other/station-FWI/20000101.20220907.hrlyInterp/FWI/727970-94240.spline.DailyFWIfromHourlyInterp.csv")
     dat = pd.read_csv(("s3://" + st.File_path.iloc[0]), index_col = False)
@@ -123,17 +174,46 @@ def plot_st(lat, lon, stations, all_plot = True, times = "none_passed", flag_bad
         
 ## Finding stations
 def distance(lat1, lon1, lat2, lon2):
+    '''
+    Finds distance in km between two points designated with lat and lon values 
+    
+    INPUTS:
+        
+        lat1 (str):  A  lattitude
+        lon1 (str):  A longitude
+        lat2 (str):  second lattitude
+        lon2 (str):  second longitude 
+    
+    '''
     p = 0.017453292519943295
     hav = 0.5 - cos((lat2-lat1)*p)/2 + cos(lat1*p)*cos(lat2*p) * (1-cos((lon2-lon1)*p)) / 2
     return 12742 * asin(sqrt(hav)) ## Returns in km
 
 def closest(data, v):
+    '''
+    Will return the shortests distance between one lat/lon point and a dictionary of several lat/lon points. 
+    
+    INPUTS:
+        
+        data (dict):  A  dictionary with "Lat" and "Lon" entries to compare to v
+        v (dict):  A dictinary with a single "Lat" and "Lon" entry. 
+    
+    '''
     mn = min(data, key=lambda p: distance(v['Lat'],v['Lon'],p['Lat'],p['Lon']))
     dist = distance(v['Lat'],v['Lon'], mn['Lat'], mn['Lon'])
     print("The closest station is", dist, "km away." )
     return mn
 
 def closest_srch(data, v):
+    '''
+    Will return the shortests distance between one lat/lon point and a dictionary of several lat/lon points. Will return a DataFrame of the closest point with columns "Lat", "Lon", and "dist_km". 
+    
+    INPUTS:
+        
+        data (dict):  A  dictionary with "Lat" and "Lon" entries to compare to v
+        v (dict):  A dictinary with a single "Lat" and "Lon" entry. 
+    
+    '''
     mn = min(data, key=lambda p: distance(v['Lat'],v['Lon'],p['Lat'],p['Lon']))
     dist = distance(v['Lat'],v['Lon'], mn['Lat'], mn['Lon'])
     mn = pd.DataFrame([mn])
@@ -184,6 +264,21 @@ def load_file(date,layer='perimeter',handle_multi=False,
     return gdf
 
 def prep_gdf(date = '20191031PM',handle_multi=True,only_lf=True,area_lim=5, index ='fireID',inplace=True):
+    '''
+    loads in snapshot file based on input date and layer, then preps it for "explore" by adding centriod data and converting datTime files to strings. 
+    
+    INPUTS:
+        
+        date (str): string in the form YYYYMMDDAM (or PM)
+        layer (str): either "perimeter", "fireline", or "newfirepix"
+        handle_multi (bool): drop fire ids in snapshot data that have several polygons
+                             associated with them. these are usually several close together
+                             static fires that should be filtered out.
+        only_lf (bool): only display fires with polygons > area_lim
+        area_lim (int): value in km2 to use as lower threshold for largefire filter
+        show_progress (bool): print out the file's date once it's loaded.
+                              this is helpful when using the function in a loop.
+    '''
     gdf = load_file('20191031PM',handle_multi=True,only_lf=True,area_lim=5)
     gdf.set_index('fireID',inplace=True)
 
@@ -220,7 +315,15 @@ def prep_gdf(date = '20191031PM',handle_multi=True,only_lf=True,area_lim=5, inde
     
 
 def fire_search(gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
+    '''
+    Will look for the closest station for a geoDataFrame of fires, and will return a dataframe with the columns "Lat", "Lon", "dist_km","Origin_lat", "Origin_lon",  and "fireID". "Origin_*" refers to the fires's centriod lat and lon. "Lat"/ "Lon" are the station' lat and lon. 
     
+    INPUTS:
+        
+        gdf (GeoDataFrame):  A snapshot file.
+        stations (DataFrame): a dataframe as outputted by st_avail. A dataframe with columns for station lat, lon, and ID. 
+        dist_max_km (float): Maximum distance in km. 
+    '''
     st_dict = stations[['Lat', 'Lon']].to_dict('records')
     small_map = gdf[["lon", 'lat']]
 
@@ -239,6 +342,14 @@ def fire_search(gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
 
 
 def load_large_fire(fireID):
+    '''
+    loads in largefire file based on fireID and layer, then preps it for "explore" by adding centriod data. Currently limited to 2019. 
+    
+    INPUTS:
+        
+        fireID (str): fireID offire of interest. Can be found in gdf files read in by prep_gdf and load_file. Can be selected interactivly form a gdf if use gdf.explore()
+
+    '''
     lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/WesternUS/2019/Largefire/*' + fireID + '*') ## ID of William's Flats
     lf_ids = list(set([file.split('Largefire/')[1].split('_')[0] for file in lf_files])) 
     largefire_dict = dict.fromkeys(lf_ids)
@@ -255,6 +366,13 @@ def load_large_fire(fireID):
     return gdf
 
 def fr_st_merge(gdf, dat, sub= True):
+    '''
+    INPUTS:
+        gdf (GeoDataFrame): A largefile GeoDataFrame as read in by load_large_fire.
+        dat (DataFrame): Station data, as read in by get_st
+        sub (bool): Will subset the station data to dates overlapping the 
+    '''
+    
     if(sub):
         st_dat = dat[(dat.time >= min(gdf.t)) &  (dat.time <= max(gdf.t))]
         st_dat = st_dat.rename(columns = {"time":"t"})
