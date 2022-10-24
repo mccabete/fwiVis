@@ -17,7 +17,7 @@ To use these functions on anouther MAAP account, run the following commands:
 
 # Collborating
 
-- If you build new functions that take different dependencies than the ones listed here, create a new `fwiVis.yml` by activating the `env` you are developing in and running `conda env export > fwiVis.yml` and commit your changes.
+- If you build new functions that takes different dependencies than the ones listed here, create a new `fwiVis.yml` by activating the `env` you are developing in and running `conda env export > fwiVis.yml` and commit your changes.
 - If the fwiVis.yml has changed since you created the environment, you can update your environment with `conda env update -f your_environment_file.yml -p /path/to/directory`
 
 
