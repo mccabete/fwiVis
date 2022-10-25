@@ -8,18 +8,10 @@ This is package of fucntions to quickly visualize fire polygons and weather stat
 To use these functions on anouther MAAP account, run the following commands: 
 
 - Within your `/my-public-bucket/` path, run `git clone https://github.com/mccabete/fwiVis.git`
-- Then recreate the package dependencies with `conda env create -f fire_weather_vis/fwiVis.yml --prefix /path/to/directory` or `mamba env create -f fwiVis/fwiVis.yml --prefix /path/to/directory`.
-  -  __Note:__ In MAAP, custom environments will be deleted. To create an environment that persists between sessions, replace `/path/to/directory` with a path within your home directory in MAAP, like `~/myenvs/`. This is recommended, becuase creating the environment initially takes a while. For more information on MAAP custom environments, see [this quickstart guide](https://docs.google.com/document/d/1YSE0PcZV7N7VwCEMcay0HYxsqauqsa9Zl-DiBq-d2mA/edit?usp=sharing), or the [MAAP documentation](https://docs.maap-project.org/en/latest/index.html). 
-- Checkout the new env with `conda activate /path/to/directory`
-- Make sure that the python kernel interacts with the env by running  `python -m ipykernel install --user --name fwiVis --display-name "Python (fwiVis)"`, and swapping your notebook kernel to the one you just created. 
+- Witin a terminal, run `python -m pip install ipympl geocube folium mapclassify -q`. 
+  - Make sure that the python kernel interacts with the env by running `python -m ipykernel install --user --name fwiVis --display-name "Python (fwiVis)"`, and swapping your notebook kernel to the one you just created.
 - Navigate to `/my-public-bucket/fwiVis/base-fwi-vis/` and run `pip install .`
-- Now run the notebook at `baes-fwi-vis/fwi_vis_utils.ipynb`
-
-# Collborating
-
-- If you build new functions that takes different dependencies than the ones listed here, create a new `fwiVis.yml` by activating the `env` you are developing in and running `conda env export > fwiVis.yml` and commit your changes.
-- If the fwiVis.yml has changed since you created the environment, you can update your environment with `conda env update -f your_environment_file.yml -p /path/to/directory`
-
+- Now run the notebook at baes-fwi-vis/fwi_vis_utils.ipynb
 
 # Copywrite
 This code is open-source and can be free used for research purposes. However, it is not generalized for use outside of EIS collaborations.
