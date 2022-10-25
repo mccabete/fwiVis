@@ -375,10 +375,15 @@ def fr_st_merge(gdf, dat, sub= True):
     
     if(sub):
         st_dat = dat[(dat.time >= min(gdf.t)) &  (dat.time <= max(gdf.t))]
-        st_dat = st_dat.rename(columns = {"time":"t"})
+        
     else:
         st_dat = dat
-            
+   
+    st_dat = st_dat.rename(columns = {"time":"t"}) 
+    
+    ## Put both into datetimes
+    st_dat['t'] = st_dat['t'].astype('datetime64[ns]')
+    gdf['t'] = gdf['t'].astype('datetime64[ns]')
     full = pd.merge(gdf,st_dat, on = "t", how = "outer")
     full = full.sort_values(by = ['t']) ## Need to sort or timeseries jumps around
     full['t'] = full['t'].astype('datetime64[ns]') 
