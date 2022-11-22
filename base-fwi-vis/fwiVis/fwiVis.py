@@ -20,7 +20,7 @@ import folium
 from folium import plugins
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 
-def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpContinuous"):
+def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/"):
     '''
    Takes a list of stations at a files path. Subsets by a specific interpolation type, and then parses the paths to get station ID's lat, and lon.  
     
@@ -29,8 +29,10 @@ def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpCon
         files (list[str]): A list of station data paths from a directory. 
         st_id_map (panadas DF): sheet that maps station ID's to lat and lon. Found at ref_data/isd-history.csv
         inter_type (str): Interpolation type. Options availible are described in the ref_data README. 
+        path (str): The veda-data-store path to the FWI files. 
     
     '''
+    print("Searching for availible stations at" + path_s3)
     file_inter = []
     for path in files:
         if inter_type in path:
@@ -38,7 +40,7 @@ def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpCon
 
     df = []
     for i in file_inter:
-        pt_1 = re.sub("veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/", "", i)
+        pt_1 = re.sub(path_s3, "", i)
         #pt_2 = re.sub(".spline.DailyFWIfromHourlyInterp.csv","",  pt_1)
         pt_2 = re.sub(("." + inter_type + ".csv"),"",  pt_1)
         pt_3 = pt_2.split("-")
@@ -223,7 +225,7 @@ def closest_srch(data, v):
 
 ### Loading Fire files
 def load_file(date,layer='perimeter',handle_multi=False,
-              only_lf=False,area_lim=5,show_progress=False):
+              only_lf=False,area_lim=5,show_progress=False, year = "2019", path_region = "WesternUS"):
     '''
     loads in snapshot file based on input date and layer
     
@@ -238,11 +240,14 @@ def load_file(date,layer='perimeter',handle_multi=False,
         area_lim (int): value in km2 to use as lower threshold for largefire filter
         show_progress (bool): print out the file's date once it's loaded.
                               this is helpful when using the function in a loop.
-       This function was authored by Eli. 
+        year (str): Year that fires took place. Default to 2019. Availible options differ by path_region. 
+        path_region (str): This constructs the path that the fires are stored in. WesternUS and CONUS availible. 
+    
+       This function was authored by Eli, and modified by Tess.  
     
     '''
     
-    base_path = '/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/WesternUS/2019/Snapshot/'
+    base_path = '/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/' +path_region+ '/'+ year +'/Snapshot/'
     full_path = os.path.join(base_path,date)
     try: 
         gdf = gpd.read_file(full_path,layer=layer)
@@ -263,7 +268,7 @@ def load_file(date,layer='perimeter',handle_multi=False,
     
     return gdf
 
-def prep_gdf(date = '20191031PM',handle_multi=True,only_lf=True,area_lim=5, index ='fireID',inplace=True):
+def prep_gdf(date = '20191031PM',layer='perimeter', handle_multi=True,only_lf=True,area_lim=5, year = "2019", path_region = "WesternUS"):
     '''
     loads in snapshot file based on input date and layer, then preps it for "explore" by adding centriod data and converting datTime files to strings. 
     
@@ -278,8 +283,10 @@ def prep_gdf(date = '20191031PM',handle_multi=True,only_lf=True,area_lim=5, inde
         area_lim (int): value in km2 to use as lower threshold for largefire filter
         show_progress (bool): print out the file's date once it's loaded.
                               this is helpful when using the function in a loop.
+        year (str): Year that fires took place. Default to 2019. Availible options differ by path_region. 
+        path_region (str): This constructs the path that the fires are stored in. WesternUS and CONUS availible. 
     '''
-    gdf = load_file('20191031PM',handle_multi=True,only_lf=True,area_lim=5)
+    gdf = load_file( date, layer,  handle_multi,only_lf,area_lim, year, path_region)
     gdf.set_index('fireID',inplace=True)
 
 ### Get explore map to display lat and lon 
@@ -341,16 +348,17 @@ def fire_search(gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
     return(df_small)
 
 
-def load_large_fire(fireID):
+def load_large_fire(fireID, year = "2019", path_region = "WesternUS"):
     '''
-    loads in largefire file based on fireID and layer, then preps it for "explore" by adding centriod data. Currently limited to 2019. 
+    loads in largefire file based on fireID and layer, then preps it for "explore" by adding centriod data. Currently limited to one year. 
     
     INPUTS:
         
         fireID (str): fireID offire of interest. Can be found in gdf files read in by prep_gdf and load_file. Can be selected interactivly form a gdf if use gdf.explore()
-
+        year (str): Year that fires took place. Default to 2019. Availible options differ by path_region. 
+        path_region (str): This constructs the path that the fires are stored in. WesternUS and CONUS availible. 
     '''
-    lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/WesternUS/2019/Largefire/*' + fireID + '*') ## ID of William's Flats
+    lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/*' + fireID + '*') 
     lf_ids = list(set([file.split('Largefire/')[1].split('_')[0] for file in lf_files])) 
     largefire_dict = dict.fromkeys(lf_ids)
     
@@ -365,23 +373,36 @@ def load_large_fire(fireID):
     gdf['lat'] = gdf.centroid.y
     return gdf
 
-def fr_st_merge(gdf, dat, sub= True):
+def fr_st_merge(gdf, dat, sub= True, sub_type = "exact", num_months = 1):
     '''
     INPUTS:
         gdf (GeoDataFrame): A largefile GeoDataFrame as read in by load_large_fire.
         dat (DataFrame): Station data, as read in by get_st
-        sub (bool): Will subset the station data to dates overlapping the 
+        sub (bool): Will subset the station data to dates overlapping the time when the fire is active (according to Yang Chen's algorithm, ~ 5 days past last burn)
+        sub_type (str): "exact", "month_before", Subset station data to include leadup to fire
+        num_months (int): If sub_type = "month_before", # months before start of fire. 
     '''
     
     if(sub):
-        st_dat = dat[(dat.time >= min(gdf.t)) &  (dat.time <= max(gdf.t))]
-        st_dat = st_dat.rename(columns = {"time":"t"})
+        if(sub_type == "exact"):
+            st_dat = dat[(dat.time >= min(gdf.t)) &  (dat.time <= max(gdf.t))]
+        if(sub_type == "month_before"):
+            start_date =  min(gdf.t)
+            month_early = start_date - np.timedelta64(num_months, 'M')
+
+            st_dat = dat[(dat.time >= month_early) &  (dat.time <= max(gdf.t))]
+        
     else:
         st_dat = dat
-            
+   
+    st_dat = st_dat.rename(columns = {"time":"t"}) 
+    
+    ## Put both into datetimes
+    st_dat['t'] = st_dat['t'].astype('datetime64[ns]')
+    gdf['t'] = gdf['t'].astype('datetime64[ns]')
     full = pd.merge(gdf,st_dat, on = "t", how = "outer")
-    full = full.sort_values(by = ['t']) ## Need to sort or timeseries jumps around
-    full['t'] = full['t'].astype('datetime64[ns]') 
+    #full = full.sort_values(by = ['t']) ## Need to sort or timeseries jumps around
+    #full['t'] = full['t'].astype('datetime64[ns]') 
     return(full)
 
 #def fire_quickplot(fireID):
