@@ -203,7 +203,9 @@ def closest(data, v):
     '''
     mn = min(data, key=lambda p: distance(v['Lat'],v['Lon'],p['Lat'],p['Lon']))
     dist = distance(v['Lat'],v['Lon'], mn['Lat'], mn['Lon'])
-    print("The closest station is", dist, "km away." )
+    #this_station = data[(data['Lat'] == mn['Lat']) & (data['Lon'] == mn['Lon'])]
+    #print("The closest station is", this_station["STATION NAME"]," USAF: ", this_station["USAF"],"located at Lat", mn['Lat']," and Lon",mn['Lon'],  "and is ",  dist, "km away." )
+    print("The closest station is",  dist, "km away." )
     return mn
 
 def closest_srch(data, v):
@@ -373,7 +375,7 @@ def load_large_fire(fireID, year = "2019", path_region = "WesternUS"):
     gdf['lat'] = gdf.centroid.y
     return gdf
 
-def fr_st_merge(gdf, dat, sub= True, sub_type = "exact", num_months = 1):
+def fr_st_merge(gdf, dat, sub= True, sub_type = "exact", num_months = 1, custom_date = "NA"):
     '''
     INPUTS:
         gdf (GeoDataFrame): A largefile GeoDataFrame as read in by load_large_fire.
@@ -391,6 +393,10 @@ def fr_st_merge(gdf, dat, sub= True, sub_type = "exact", num_months = 1):
             month_early = start_date - np.timedelta64(num_months, 'M')
 
             st_dat = dat[(dat.time >= month_early) &  (dat.time <= max(gdf.t))]
+        if(sub_type == "custom"):
+            start_date =  min(gdf.t)
+            print("Subsetting to ", custom_date)
+            st_dat = dat[(dat.time >= custom_date) &  (dat.time <= max(gdf.t))]
         
     else:
         st_dat = dat
