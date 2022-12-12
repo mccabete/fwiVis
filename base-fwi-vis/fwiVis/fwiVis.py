@@ -225,6 +225,58 @@ def closest_srch(data, v):
     mn['dist_km'] = dist
     return mn
 
+def station_lookup(Lat, Lon, stations = stations, id_key = st_id_map):
+    station = stations
+    #this_station = station[(round(station.Lat, 3) == Lat) & (round(station.Lon,3) == Lon)] ## Note_ rounding assumptions need to change if not coming from print statement
+    this_station = station[(station.Lat) == Lat) & (station.Lon) == Lon)] 
+    this_station_more_info = id_key.loc[id_key.USAF.astype(str) == this_station.USAF.iloc[0]]
+    print("The closest station is ", this_station_more_info["STATION NAME"], " USAF: ", this_station["USAF"], "Located at ", Lat, ":", Lon)
+def stations_dist(st_dict, fire_center):
+    '''
+    Will return the distances between one lat/lon point and a dictionary of several lat/lon points. 
+    
+    INPUTS:
+        
+        st_dict (dict):  A  dictionary with "Lat" and "Lon" entries to compare to fire_center
+        fire_center (dict):  A dictinary with a single "Lat" and "Lon" entry. 
+    
+    '''
+  
+    
+    distances = pd.Series(map(lambda p: distance(fire_center['Lat'],fire_center['Lon'],p['Lat'],p['Lon']), st_dict))
+    st_df = pd.DataFrame.from_dict(st_dict)
+    colname = "Dist_to_fire"
+    st_df[colname] = distances
+    st_df = st_df.sort_values(by = colname)
+    
+
+    return st_df
+
+def all_stations_search(st_dict, fire_center, id_key = st_id_map, max_dist = np.nan): 
+        '''
+    Returns all stations, with descriptors, within a certain distance from a point
+    
+    INPUTS:
+        
+        st_dict (dict):  A  dictionary with "Lat" and "Lon" entries to compare to fire_center
+        fire_center (dict):  A dictinary with a single "Lat" and "Lon" entry. 
+        id_key (panadas DF): sheet that maps station ID's to lat and lon. Found at ref_data/isd-history.csv
+        max_dist (float): Maximum distance in km from fire_center. Default of NaN will return the distance of each station in network. 
+    
+    '''
+    
+    st_df = stations_dist(st_dict, fire_center)
+
+    id_key = id_key.rename(columns={"LAT": "Lat", "LON": "Lon"})
+    names = pd.merge(st_df, id_key, on = ["Lat", "Lon"])
+    
+    if(not np.isnan(max_dist)):
+        names = names[names.Dist_to_fire <= max_dist]
+    
+        
+        
+    return(names)
+
 ### Loading Fire files
 def load_file(date,layer='perimeter',handle_multi=False,
               only_lf=False,area_lim=5,show_progress=False, year = "2019", path_region = "WesternUS"):
@@ -410,6 +462,50 @@ def fr_st_merge(gdf, dat, sub= True, sub_type = "exact", num_months = 1, custom_
     #full = full.sort_values(by = ['t']) ## Need to sort or timeseries jumps around
     #full['t'] = full['t'].astype('datetime64[ns]') 
     return(full)
+
+
+def merge_with_fire(gdf_beachie, fireID = "NA", fire_name = "NA", foi_custom = np.nan ):
+    '''
+    Will take a large_fire object and will merge it with the closest weather station. 
+    
+    INPUTS:
+        gdf_beachie (GeoDataFrame): A largefile GeoDataFrame as read in by load_large_fire.
+        fireID (str): ID of fire for labeling. Optional. 
+        fire_name (str): Name of fire for labeling. Optional. 
+        foi_custom (dict): A dictionary object with "Lat" and "Lon". This function's default behavior is to find a wether station closest to the center of the fire. foi_custom allows a user to pass a differnt point. 
+        
+    '''
+    ## Clean some columns
+    gdf_beachie["fireID"] = fireID
+    gdf_beachie["Fire_Name"] = fire_name
+    gdf_beachie["timediff"]  = gdf_beachie.t.astype("datetime64[ns]") - pd.to_datetime(min(gdf_beachie.t))
+    gdf_beachie['timediff'] = gdf_beachie.timediff.astype("int")
+    
+    ## Get Fire Lat Lon
+    if(np.isnan(foi_custom)):
+        foi = gdf_beachie
+        foi = foi.rename(columns = {"lat": "Lat", "lon": "Lon"})
+        foi = foi.iloc[0] # First element
+        print(foi["Lat"])
+        print(foi["Lon"])
+    else:
+        foi = foi_custom
+        print(foi["Lat"])
+        print(foi["Lon"])
+        
+    ## Look for closest station
+    st_cls = fv.closest(st_dict, foi)
+    closest(st_dict,foi)
+    
+    ## Get station Data
+    st = fv.get_st(lat = st_cls["Lat"], lon = st_cls["Lon"], stations = stations)
+    
+    ## Merge with fire data
+    gdf_beachie["t"] = gdf_beachie["t"].astype("datetime64[ns]")
+    full_fr = fr_st_merge(gdf_beachie, st, sub = True, sub_type = "custom", custom_date = "2020-08-08", end_date = "2020-10-08")
+    full_fr = full_fr.sort_values( by = "t")
+    
+    return(full_fr)
 
 #def fire_quickplot(fireID):
 #    fr = load_large_fire(fireID)
