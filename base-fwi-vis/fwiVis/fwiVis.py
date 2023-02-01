@@ -225,10 +225,10 @@ def closest_srch(data, v):
     mn['dist_km'] = dist
     return mn
 
-def station_lookup(Lat, Lon, stations = stations, id_key = st_id_map):
+def station_lookup(Lat, Lon, stations, id_key):
     station = stations
     #this_station = station[(round(station.Lat, 3) == Lat) & (round(station.Lon,3) == Lon)] ## Note_ rounding assumptions need to change if not coming from print statement
-    this_station = station[(station.Lat) == Lat) & (station.Lon) == Lon)] 
+    this_station = station[((station.Lat) == Lat) & ((station.Lon) == Lon)] 
     this_station_more_info = id_key.loc[id_key.USAF.astype(str) == this_station.USAF.iloc[0]]
     print("The closest station is ", this_station_more_info["STATION NAME"], " USAF: ", this_station["USAF"], "Located at ", Lat, ":", Lon)
 def stations_dist(st_dict, fire_center):
@@ -252,8 +252,8 @@ def stations_dist(st_dict, fire_center):
 
     return st_df
 
-def all_stations_search(st_dict, fire_center, id_key = st_id_map, max_dist = np.nan): 
-        '''
+def all_stations_search(st_dict, fire_center, id_key, max_dist = np.nan): 
+    '''
     Returns all stations, with descriptors, within a certain distance from a point
     
     INPUTS:
@@ -322,7 +322,7 @@ def load_file(date,layer='perimeter',handle_multi=False,
     
     return gdf
 
-def prep_gdf(date = '20191031PM',layer='perimeter', handle_multi=True,only_lf=True,area_lim=5, year = "2019", path_region = "WesternUS"):
+def prep_gdf(date = '20191031PM',layer='perimeter', handle_multi=True,only_lf=True,area_lim=5, year = "2019", **kwargs):
     '''
     loads in snapshot file based on input date and layer, then preps it for "explore" by adding centriod data and converting datTime files to strings. 
     
@@ -340,7 +340,7 @@ def prep_gdf(date = '20191031PM',layer='perimeter', handle_multi=True,only_lf=Tr
         year (str): Year that fires took place. Default to 2019. Availible options differ by path_region. 
         path_region (str): This constructs the path that the fires are stored in. WesternUS and CONUS availible. 
     '''
-    gdf = load_file( date, layer,  handle_multi,only_lf,area_lim, year, path_region)
+    gdf = load_file( date = date, layer = layer,  handle_multi = handle_multi, only_lf = only_lf, area_lim = area_lim, year = year, **kwargs)
     gdf.set_index('fireID',inplace=True)
 
 ### Get explore map to display lat and lon 
@@ -464,7 +464,7 @@ def fr_st_merge(gdf, dat, sub= True, sub_type = "exact", num_months = 1, custom_
     return(full)
 
 
-def merge_with_fire(gdf_beachie, fireID = "NA", fire_name = "NA", foi_custom = np.nan ):
+def merge_with_fire(gdf_beachie, st_dict,stations,  fireID = "NA", fire_name = "NA", foi_custom = {}, **kwargs):
     '''
     Will take a large_fire object and will merge it with the closest weather station. 
     
@@ -482,7 +482,7 @@ def merge_with_fire(gdf_beachie, fireID = "NA", fire_name = "NA", foi_custom = n
     gdf_beachie['timediff'] = gdf_beachie.timediff.astype("int")
     
     ## Get Fire Lat Lon
-    if(np.isnan(foi_custom)):
+    if(not foi_custom):
         foi = gdf_beachie
         foi = foi.rename(columns = {"lat": "Lat", "lon": "Lon"})
         foi = foi.iloc[0] # First element
@@ -494,19 +494,192 @@ def merge_with_fire(gdf_beachie, fireID = "NA", fire_name = "NA", foi_custom = n
         print(foi["Lon"])
         
     ## Look for closest station
-    st_cls = fv.closest(st_dict, foi)
+    st_cls = closest(st_dict, foi)
     closest(st_dict,foi)
     
     ## Get station Data
-    st = fv.get_st(lat = st_cls["Lat"], lon = st_cls["Lon"], stations = stations)
+    st = get_st(lat = st_cls["Lat"], lon = st_cls["Lon"], stations = stations)
     
     ## Merge with fire data
     gdf_beachie["t"] = gdf_beachie["t"].astype("datetime64[ns]")
-    full_fr = fr_st_merge(gdf_beachie, st, sub = True, sub_type = "custom", custom_date = "2020-08-08", end_date = "2020-10-08")
+    full_fr = fr_st_merge(gdf_beachie, st, )
     full_fr = full_fr.sort_values( by = "t")
     
     return(full_fr)
 
 #def fire_quickplot(fireID):
 #    fr = load_large_fire(fireID)
+
+
+######### Snapshot functions ###################
+
+def join_reducer(left, right):
+    """
+    Take two geodataframes, do a spatial join, and return without the
+    index_left and index_right columns.
+    """
+    sjoin = gpd.sjoin(left, right, how='left')
+    for column in ['index_left', 'index_right']:
+        try:
+            sjoin.drop(column, axis=1, inplace=True)
+        except (ValueError, KeyError):
+            # ignore if there are no index columns
+            pass
+    return sjoin
+
+
+def filter_flare(snapshot, doe_oil = True, noaa_flare = True, buffer = 0.02, drop_filter_cols = True):
+    '''
+    Will take snapshot files and remove fires near either the doe's oil-well location map, and/or noaa's viirs flare map.
     
+    INPUTS:
+        
+        snapshot (GeoDataFrame): A geodataframe of active fire perimeters of a specific day. 
+        doe_oil (bool): Filter by a DOE generalized shapefile of oil well locations? Default to True. Covers only US. 
+        noaa_flare (bool): Filter by NOAA flare points? Default to True. Data in point form. Combined to shape unsing buffer. Global coverage. 
+        buffer (float): Radius of buffer. This function uses projection EPSG:4326, so radius' units are degrees lat and degrees lon. Radius is not a single length in all directions. Defualt to 0.02. 
+        drop_filter_cols (bool): Filtering is done using joins with dataset. drop_filter_cols prevents final snapshot from carying all the columns of the filtering datasets. Defualt to True. 
+        
+    '''
+    
+    snapshot = snapshot.to_crs('EPSG:4326') ## Put prep in different function? 
+    snapshot["lat"] = snapshot.centroid.y
+    snapshot["lon"] = snapshot.centroid.x
+    
+    snap_copy = snapshot
+    
+    if(doe_oil):
+        print("Filtering by DOE's generalized oil shapfile")
+        oil_wells_generalized = gpd.read_file("/projects/my-public-bucket/fire_weather_vis/ref_data/Oil_wells_generalized/Wells_Oil_Generalized.shp")
+        oil_wells_generalized.set_crs('EPSG:4326')
+        oil_cols = oil_wells_generalized.columns
+        oil_cols = oil_cols.drop("geometry")
+        snap_copy = join_reducer(snap_copy, oil_wells_generalized)
+        #snap_copy = sjoin(snapshot,oil_wells_generalized,  how="left")
+        snap_copy = snap_copy[snap_copy.FID.isnull()]
+        
+        #snap_copy = snap_copy.drop('index_right', axis=1)
+        #snap_copy = snap_copy.drop('index_left', axis=1)
+        
+        if(drop_filter_cols):
+            snap_copy = snap_copy.drop(columns = oil_cols)                         
+        
+    if(noaa_flare):
+        print("Filtering by NOAA Flare data, with a buffer of " + str(buffer) + "." )
+        global_flaring = gpd.read_file("/projects/my-public-bucket/fire_weather_vis/ref_data/NOAA_flare_data_global/VIIRS_Global_flaring_d.7_slope_0.029353_2017_web_v1.csv")
+        global_flaring_cols = global_flaring.columns
+        global_flaring_cols = global_flaring_cols.drop("geometry")
+                                      
+        ## prep global flaring for filtering
+        global_flaring = global_flaring.drop_duplicates()
+        global_flaring = global_flaring[0:(len(global_flaring.id_key_2017) - 1)]
+        global_flaring = gpd.GeoDataFrame(global_flaring, geometry=gpd.points_from_xy(global_flaring.Longitude, global_flaring.Latitude)) 
+        ## Add buffer between points
+        global_flaring["buffer_geometry"] = global_flaring.buffer(buffer)
+        global_flaring.set_crs('EPSG:4326')
+        global_flaring = global_flaring.set_geometry(col = "buffer_geometry")
+        gf = global_flaring.drop(columns=["geometry"])
+        gf = gf.set_crs('EPSG:4326')
+
+ 
+        
+        snap_copy = join_reducer(snap_copy, gf)
+        #snap_copy = sjoin(snap_copy, gf, how = "left")
+        snap_copy = snap_copy[snap_copy.id_key_2017.isnull()]
+        #snap_copy = snap_copy.drop('index_right', axis=1)
+        #snap_copy = snap_copy.drop('index_left', axis=1)
+                                      
+        if(drop_filter_cols):
+            snap_copy = snap_copy.drop(columns = global_flaring_cols)
+
+    
+    return(snap_copy)
+
+####### Imerge funcitons ############
+
+def imerge_climate(imerge ,clim = ["rank", "anomolie","rank_anomolie"], var = ["FWI"]):
+    '''
+   Takes an imerge xararay dataset and calculated the rank|anomolies|rank_anomolies across time fore each pixel.   
+    
+    INPUTS:
+        
+        imerge (Xarray.Dataset): IMERGE FWI data in intermediate variables 
+        clim ([str]): List of climate statistics to calcualte. Options "rank", "anomolie", and "rank_anomolie". "rank" or data betwee 0-1. 1 is largest data, 0 is smallest. "anomolie" will take the mean over the "time" dimention and subtract the mean from each point in time. "rank_anomolie" first calcualtes anomolies by substracting the mean and then ranks those anomolies. 
+        var ([str]): Which variables to calculate the climate stats on. Defaults to "FWI", but "BUI", "DC", "DMC", "DSR", "FFMC",  and "ISI" are available. 
+    
+    '''
+    
+    clim_ok = all(x in ["rank", "anomolie","rank_anomolie"] for x in clim)
+    
+    if(not clim_ok):
+        raise ValueError("clim is not one of the allowed options: ", clim_options)
+    
+    for v in var:
+        
+        v_long = "GPM.LATE.v5_" + v
+
+        if( ("anomolie" in clim) | ("rank_anomolie" in clim) ):
+            mean = imerge[v_long].mean(dim = 'time')
+            var_name = v + "_anomolie"
+            print("Assignign variable " + var_name)
+            imerge = imerge.assign( foo = imerge[v_long] - mean)
+            imerge = imerge.rename({"foo": var_name })
+            
+        if("rank" in clim):
+            #N = len(imerge[v_long])
+            rank = imerge[v_long].rank(dim = "time", pct=True)
+            #rank = rank/N
+            var_name_rank = v + "_rank"
+            print("Assignign variable " + var_name_rank)
+            imerge = imerge.assign(foo2 = rank)
+            imerge = imerge.rename({"foo2": var_name_rank})
+        
+        if("rank_anomolie" in clim):
+            rank_am = imerge[var_name].rank(dim = "time", pct=True)
+            #N = len(imerge[var_name])
+            #rank_am = rank_am / N
+            var_name_rank_am = v + "_rank_anomolies"
+            print("Assignign variable " + var_name_rank_am)
+            imerge = imerge.assign(foo3 = rank_am)
+            imerge = imerge.rename({"foo3" : var_name_rank_am})
+        
+     
+    return(imerge)
+
+def imerge_merge(id, year, path_region, start_date = "default", end_date = "default", add_anomolies = True, **kwargs):
+    
+    ## Read in IMERGE (is this the best place for this?)
+    imerge = xr.open_dataset("s3://veda-data-store-staging/EIS/zarr/GEOS5_FWI_GPM_LATE_v5_Daily.zarr", engine="zarr")
+    imerge.rio.write_crs("epsg:4326", inplace=True)
+    imerge.rio.set_spatial_dims(x_dim = "lon", y_dim = "lat", inplace = True)
+
+    gdf = fv.load_large_fire(id, year = year, path_region= path_region, **kwargs)
+    
+    if(start_date == "default"):
+        start_date = year + "-01-01"
+    
+    if(end_date == "default"):
+        end_date = year + "-11-01" ## Ending in November becuase October has been the end of the fire season in our
+    
+    ## Get imerge -- Need to do on whole area? How manke more computationally efficient?
+    final_perimeter = max(gdf[gdf.t == max(gdf.t)].geometry)
+    print(final_perimeter.envelope.exterior.coords.xy)
+    lons = final_perimeter.envelope.exterior.coords.xy[0]
+    lats = final_perimeter.envelope.exterior.coords.xy[1]
+    img_clip = imerge.rio.clip_box(minx = min(lons), miny = min(lats), maxx=max(lons), maxy = max(lats))
+    
+    if(add_anomolies):
+        img_clip = fv.imerge_climate(img_clip ,clim = ["rank", "anomolie","rank_anomolie"], var = ["FWI"])
+    
+    img_clip = img_clip.sel(time = slice(start_date,end_date)).mean(dim = ["lat", "lon"])
+    img_clip = img_clip.to_dataframe()
+    img_clip.drop(columns = "spatial_ref", inplace = True)
+    img_clip.dropna(inplace = True)
+    
+    gdf["fireID"] = i
+    gdf = gdf.rename(columns = {"t" : "time"})
+    gdf['time'] = gdf['time'].astype('datetime64[ns]')
+    full = pd.merge(gdf,img_clip, on = "time", how = "outer")
+    full = full.rename(columns = {"time": "t"}) ## Seems silly but I cant get the img_clip to convert it's name
+    
+    return(full)
