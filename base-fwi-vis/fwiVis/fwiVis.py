@@ -689,3 +689,46 @@ def imerge_merge(id, year, path_region, add_anomolies = True, **kwargs):
     full = full.rename(columns = {"time": "t"}) ## Seems silly but I cant get the img_clip to convert it's name
     
     return(full)
+def get_gpm_spread(full, pct_max_spread = 0.20):
+    '''
+    Finds "spread_days" and "non_spread_days" for fire. 
+    
+    INPUTS:
+        
+        full (GeoDataFrame): GDF with farea. Output from Imerge-merge
+        pct_max_spread (float): Percentage of biggest increase in fire area that should count as a "spread day"
+    
+    '''
+    
+    cols = list(full.columns.values)
+    
+    full_d = full[full.t.dt.hour > 0] ## Daytime
+    full_d = full_d.sort_values(by = ["t"]) #--- Need to sort by time, will otherwise calcualete diffs based on weird sorting
+    full_n = full[full.t.dt.hour < 12] ## Nighttime
+    full_n = full_n.sort_values(by = ["t"])
+
+    fulls = [full_n, full_d]
+    labels = ["Night", "Day"]
+
+    for f,l in zip(fulls, labels):
+    
+        f["fline_diff"] = f.flinelen.diff()
+        f["farea_diff"] = f.farea.diff()
+
+        max_spread = max(f.fline_diff[f.fline_diff.notna()]) ## by calculating a different max for daytime vs nighttime, can get a step change in one that doesn't qualify, but would qaulify for the other. 
+        
+        f["spread_line"] = ((f["farea_diff"] > 0) & (f["farea_diff"] > (max_spread * pct_max_spread)))
+        f.spread_line[f.t == min(f.t)] = 2 # First detection need special catagory. Maybe always counts as spread day, maybe "other"
+        f["spread_line" + l] = f.spread_line
+        #f.rename(columns = {"spread_line": "spread_line" + l})
+        #plt.scatter(f.t, f.farea, c = f.spread_line)
+    
+    cols = cols + ["spread_line", "farea_diff", "fline_diff"]
+    fire = pd.merge(full_n,full_d, on = cols, how = "outer")
+    fire = fire.sort_values(by = ["t"])
+    
+    max_spread = max(fire.fline_diff[fire.fline_diff.notna()]) ## Recalulating max and spread days for overall maximum. 
+    fire["spread_day"] = ((fire["farea_diff"] > 0) & (fire["farea_diff"] > (max_spread * pct_max_spread)))
+    fire.spread_day[fire.t == min(fire.t)] = 2
+    
+    return(fire)
