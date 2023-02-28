@@ -412,7 +412,7 @@ def load_large_fire(fireID, year = "2019", path_region = "WesternUS"):
         year (str): Year that fires took place. Default to 2019. Availible options differ by path_region. 
         path_region (str): This constructs the path that the fires are stored in. WesternUS and CONUS availible. 
     '''
-    lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/*' + fireID + '*') 
+    lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/F' + fireID + '_*') 
     lf_ids = list(set([file.split('Largefire/')[1].split('_')[0] for file in lf_files])) 
     largefire_dict = dict.fromkeys(lf_ids)
     
@@ -646,8 +646,18 @@ def imerge_climate(imerge ,clim = ["rank", "anomolie","rank_anomolie"], var = ["
      
     return(imerge)
 
-def imerge_merge(id, year, path_region, start_date = "default", end_date = "default", add_anomolies = True, **kwargs):
+def imerge_merge(id, year, path_region, add_anomolies = True, **kwargs):
+    '''
+   Merges a large-fire file with the timeseries of the GPM's climate.  
     
+    INPUTS:
+        
+        id (str): Id of fire. Used to look up largefire file. 
+        year (str): year of fire. Used to look up largefire file.
+        path_region (str): Fire region. Used to look up largefire file.
+        add_anomolies (bool): Calculate the anomolies of the cliamte variables? Default True. 
+    
+    '''
     ## Read in IMERGE (is this the best place for this?)
     imerge = xr.open_dataset("s3://veda-data-store-staging/EIS/zarr/GEOS5_FWI_GPM_LATE_v5_Daily.zarr", engine="zarr")
     imerge.rio.write_crs("epsg:4326", inplace=True)
@@ -655,28 +665,24 @@ def imerge_merge(id, year, path_region, start_date = "default", end_date = "defa
 
     gdf = fv.load_large_fire(id, year = year, path_region= path_region, **kwargs)
     
-    if(start_date == "default"):
-        start_date = year + "-01-01"
-    
-    if(end_date == "default"):
-        end_date = year + "-11-01" ## Ending in November becuase October has been the end of the fire season in our
-    
+
     ## Get imerge -- Need to do on whole area? How manke more computationally efficient?
     final_perimeter = max(gdf[gdf.t == max(gdf.t)].geometry)
     print(final_perimeter.envelope.exterior.coords.xy)
     lons = final_perimeter.envelope.exterior.coords.xy[0]
     lats = final_perimeter.envelope.exterior.coords.xy[1]
-    img_clip = imerge.rio.clip_box(minx = min(lons), miny = min(lats), maxx=max(lons), maxy = max(lats))
+    img_clip = imerge.rio.clip_box(minx = min(lons), miny = min(lats), maxx=max(lons), maxy = max(lats),  auto_expand= True)
     
     if(add_anomolies):
+        print("Warning: Not passing the arguments to customize anomolies right now. Using FWI. ")
         img_clip = fv.imerge_climate(img_clip ,clim = ["rank", "anomolie","rank_anomolie"], var = ["FWI"])
     
-    img_clip = img_clip.sel(time = slice(start_date,end_date)).mean(dim = ["lat", "lon"])
+    img_clip = img_clip.sel(time = slice(min(gdf.t), max(gdf.t))).mean(dim = ["lat", "lon"])
     img_clip = img_clip.to_dataframe()
     img_clip.drop(columns = "spatial_ref", inplace = True)
     img_clip.dropna(inplace = True)
     
-    gdf["fireID"] = i
+    gdf["fireID"] = id
     gdf = gdf.rename(columns = {"t" : "time"})
     gdf['time'] = gdf['time'].astype('datetime64[ns]')
     full = pd.merge(gdf,img_clip, on = "time", how = "outer")
