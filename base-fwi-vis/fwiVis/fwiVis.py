@@ -663,7 +663,7 @@ def imerge_merge(id, year, path_region, add_anomolies = True, **kwargs):
     imerge.rio.write_crs("epsg:4326", inplace=True)
     imerge.rio.set_spatial_dims(x_dim = "lon", y_dim = "lat", inplace = True)
 
-    gdf = fv.load_large_fire(id, year = year, path_region= path_region, **kwargs)
+    gdf = load_large_fire(id, year = year, path_region= path_region, **kwargs)
     
 
     ## Get imerge -- Need to do on whole area? How manke more computationally efficient?
@@ -675,7 +675,7 @@ def imerge_merge(id, year, path_region, add_anomolies = True, **kwargs):
     
     if(add_anomolies):
         print("Warning: Not passing the arguments to customize anomolies right now. Using FWI. ")
-        img_clip = fv.imerge_climate(img_clip ,clim = ["rank", "anomolie","rank_anomolie"], var = ["FWI"])
+        img_clip = imerge_climate(img_clip ,clim = ["rank", "anomolie","rank_anomolie"], var = ["FWI"])
     
     img_clip = img_clip.sel(time = slice(min(gdf.t), max(gdf.t))).mean(dim = ["lat", "lon"])
     img_clip = img_clip.to_dataframe()
