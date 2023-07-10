@@ -1,4 +1,14 @@
- .ipynb_checkpoints/
+.ipynb_checkpoints/
 base-fwi-vis/fwiVis.egg-info/*
 base-fwi-vis/build/*
-FWI_WF_Vis_compare.ipynb 
+FWI_WF_Vis_compare.ipynb
+base-fwi-vis/.ipynb_checkpoints/
+Untitled*
+base-fwi-vis/Untitled*
+ref_data/*
+*.png
+*.jpg
+*.html
+*untitled*
+*__pycache*
+Fire_id_and_names.csv

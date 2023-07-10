@@ -417,8 +417,8 @@ def load_large_fire(fireID, year = "2019", path_region = "WesternUS"):
     largefire_dict = dict.fromkeys(lf_ids)
     
     for lf_id in lf_ids:
-         most_recent_file = [file for file in lf_files if lf_id in file][-1]
-         largefire_dict[lf_id] = most_recent_file
+        most_recent_file = [file for file in lf_files if lf_id in file][-1]
+        largefire_dict[lf_id] = most_recent_file
     
     gdf = pd.concat([gpd.read_file(file,layer='perimeter') for key, file in largefire_dict.items()], 
                    ignore_index=True)
