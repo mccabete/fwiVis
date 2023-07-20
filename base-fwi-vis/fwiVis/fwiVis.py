@@ -19,6 +19,7 @@ import warnings
 import folium
 from folium import plugins
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
+import datetime
 
 def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/"):
     '''
@@ -277,20 +278,15 @@ def all_stations_search(st_dict, fire_center, id_key, max_dist = np.nan):
         
     return(names)
 
-def plot_st_history(title = None, 
-                    path = None, 
-                    lat_lon = None, 
-                    USAF_WBAN = None, 
-                    seasons = [5, 6, 7], 
-                    year = None,
-                    plot_var = "FWI",
-                    st_dict = st_dict, 
-                    stations = stations):
-        '''
+
+def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat_lon = None, USAF_WBAN = None, seasons = [5, 6, 7], year = None, plot_var = "FWI", ):
+    '''
     Plots weather station data against historic means. Stations can be plotted form a file path, an USAF_WBAN id, or a lat and lon combination. If no station is at the exact lat lon, the function will search for the closest one. 
     
     INPUTS:
-        
+        st_dict (dict): A  dictionary with "Lat" and "Lon" entries for each weather station. A dictionary of the output from st_avail.
+        stations (DataFrame): a dataframe as outputted by st_avail. A dataframe with columns for station lat, lon, and ID.
+        st_id_map (DataFrame): a dataframe that connects Station IDs to full names and locations. 
         title (str):  An optional title for the plot. Optional. "None" is default. If "None", title will be the WMO ID of the station. 
         path (str):  Path to staion data csv. Optional. Default to "None". 
         lat_lon (list): A list of the form [lat_float, lon_float]. Optional. If lat and lon are not exact matches, function will search for closest station. 
@@ -298,9 +294,6 @@ def plot_st_history(title = None,
         seasons (list): List with single-digit representations of months to include in averaging across years. Default [5, 6, 7] or May, June and July. 
         year (str): The year of station data to compare to historic means. Defaults to "None", where the most recent data will be compared.
         plot_var (str): Variable to plot. Defaults to "FWI". 
-        st_dict (dict): A  dictionary with "Lat" and "Lon" entries for each weather station. A dictionary of the output from st_avail.
-        stations (DataFrame): a dataframe as outputted by st_avail. A dataframe with columns for station lat, lon, and ID.
-    
     '''
     
     if(all([path == None, lat_lon == None, USAF_WBAN == None])):
@@ -312,7 +305,7 @@ def plot_st_history(title = None,
         else:
             st = stations.loc[(stations.Lat == lat_lon[0]) & (stations.Lon== lat_lon[1])]
             if(len(st) == 0):
-                st_cls = fv.closest(st_dict, pd.DataFrame(data = {"Lat" :[lat_lon[0]], "Lon" :  [lat_lon[1]]}))
+                st_cls = closest(st_dict, pd.DataFrame(data = {"Lat" :[lat_lon[0]], "Lon" :  [lat_lon[1]]}))
                 st = stations.loc[(stations.Lat == st_cls["Lat"]) & (stations.Lon == st_cls["Lon"])]
                 
             path = "s3://" + st.File_path.iloc[0]
@@ -321,7 +314,12 @@ def plot_st_history(title = None,
         split = re.split(pattern = "/", string = path)
         split = split[-1]
         WMO_id = re.sub(pattern = "\..*", repl = "",  string = split)
-        title = "Weather Station WMO ID:" + WMO_id
+        extra = ""
+        if("s3://" in path):  
+            id_split = re.split(pattern = "-", string = WMO_id)
+            labs = st_id_map[(st_id_map.USAF == str(id_split[0])) & (st_id_map.WBAN == str(id_split[1]))]
+            extra = str(*labs['STATION NAME'])  + str(*labs['CTRY'])+ ", " + str(*labs['STATE'])
+        title = "Weather Station" + extra +  "WMO ID (" + WMO_id + ")"
 
 
     st = pd.read_csv(path)
@@ -329,7 +327,7 @@ def plot_st_history(title = None,
     st.YYYY = st.YYYY.astype("int")
     st.MM = st.MM.astype("int")
     st.DD = st.DD.astype("int")
-    st = fv.date_convert(st)
+    st = date_convert(st)
     
     max_season = max(seasons)
     if(max_season <= 9):
