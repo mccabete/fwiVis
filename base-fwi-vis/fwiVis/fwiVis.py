@@ -323,10 +323,12 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
 
 
     st = pd.read_csv(path)
-    st['HH'] = '12'
+    if(not np.any(st.columns.isin(["HH"]))):
+         st['HH'] = '12'
     st.YYYY = st.YYYY.astype("int")
     st.MM = st.MM.astype("int")
     st.DD = st.DD.astype("int")
+    st.HH = st.HH.astype("int")
     st = date_convert(st)
     
     max_season = max(seasons)
@@ -392,7 +394,7 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
     mid_upper = mid_upper.sort_values(by = "dates")
     mid_upper.set_index("dates", inplace = True)
     
-
+    st = st.sort_values(by = ["time"])
     try:
         upper[plot_var].rolling(5).mean()
     except:
@@ -552,7 +554,8 @@ def load_large_fire(fireID, year = "2019", path_region = "WesternUS"):
         year (str): Year that fires took place. Default to 2019. Availible options differ by path_region. 
         path_region (str): This constructs the path that the fires are stored in. WesternUS and CONUS availible. 
     '''
-    lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/F' + fireID + '_*') 
+    lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/F' + fireID + '_*')
+    print(lf_files)
     lf_ids = list(set([file.split('Largefire/')[1].split('_')[0] for file in lf_files])) 
     largefire_dict = dict.fromkeys(lf_ids)
     
