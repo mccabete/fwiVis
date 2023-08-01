@@ -418,6 +418,7 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
     ax.set_title(title)
     ax.legend()
     fig.autofmt_xdate()
+    return(st)
 
 ### Loading Fire files
 def load_file(date,layer='perimeter',handle_multi=False,
