@@ -346,7 +346,7 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
     else:
         year = year
     
-    max_day = year + "-" + max_season + "-30 23:00:00" ## Hack
+    max_day = year + "-" + max_season + "-28 23:00:00" ## Hack
     min_day = year + "-" + min_season + "-01 00:00:00"
         
 
@@ -362,6 +362,8 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
         print("Using range " + str(max(clim_normal_min, min(st.time))) + ":" + str(min(clim_normal_max, max(st.time))) + " instead.")
         mj = mj[mj.index > max(clim_normal_min, min(st.time))]
         mj = mj[mj.index < min(clim_normal_max, max(st.time))]
+    
+    mj = mj[mj.index.strftime('%m-%d') != '02-29'] # Drop leap-day becuase it's only sampled once every 4 years
 
     mean_quant = mj.groupby([mj.index.day, mj.index.month]).mean()
 
@@ -401,6 +403,8 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
         print("print_var is not present in this weather station. Columns are: " + str(st.columns))
         return(None)
     
+    daily_vars = ["DC", "BUI", "DMC"] # Vars that are daily even with hourly station data
+    
     fig, ax = plt.subplots()
     ax.fill_between(upper.index, upper[plot_var].rolling(5).mean(), lower[plot_var].rolling(5).mean(), 
                     facecolor='grey', 
@@ -413,7 +417,12 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
     ax.plot(mean_quant.index, mean_quant[plot_var].rolling(5).mean(), 
             color = "black",
             label= "Historic Mean Per Day")
-    ax.plot(st[(st.time >= min_day) & (st.time <= max_day)].time.astype('datetime64[ns]'), st[(st.time >= min_day) & (st.time <= max_day)][plot_var])
+    if(plot_var in daily_vars):
+        tmp = st.dropna()
+        ax.plot(tmp[(tmp.time >= min_day) & (tmp.time <= max_day)].time.astype('datetime64[ns]'), tmp[(tmp.time >= min_day) & (tmp.time <= max_day)][plot_var])
+    else:
+        ax.plot(st[(st.time >= min_day) & (st.time <= max_day)].time.astype('datetime64[ns]'), st[(st.time >= min_day) & (st.time <= max_day)][plot_var])
+   
     ax.set_ylabel(plot_var)
     ax.set_title(title)
     ax.legend()
