@@ -279,7 +279,8 @@ def all_stations_search(st_dict, fire_center, id_key, max_dist = np.nan):
     return(names)
 
 
-def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat_lon = None, USAF_WBAN = None, seasons = [5, 6, 7], year = None, plot_var = "FWI", ):
+def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat_lon = None, USAF_WBAN = None, seasons = [5, 6, 7], year = None, plot_var = "FWI", clim_normal_min = datetime.datetime(1991, 1, 1), 
+    clim_normal_max = datetime.datetime(2020, 12, 31)):
     '''
     Plots weather station data against historic means. Stations can be plotted form a file path, an USAF_WBAN id, or a lat and lon combination. If no station is at the exact lat lon, the function will search for the closest one. 
     
@@ -294,6 +295,8 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
         seasons (list): List with single-digit representations of months to include in averaging across years. Default [5, 6, 7] or May, June and July. 
         year (str): The year of station data to compare to historic means. Defaults to "None", where the most recent data will be compared.
         plot_var (str): Variable to plot. Defaults to "FWI". 
+        clim_normal_min (datetime): minimum period for climate normal. Defaults to January 1, 1991. If station data doesn not extend as far back as minimum, normal will be on min of station data and will throw a warning. 
+        clim_normal_max (datetime): Maximum period for climate normal. Defaults to December 31st, 2020. If station data doesn not extend into maximum, normal will be on max of station data and will throw a warning. 
     '''
     
     if(all([path == None, lat_lon == None, USAF_WBAN == None])):
@@ -337,6 +340,8 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
     min_season = min(seasons)
     if(min_season <= 9):
         min_season = "0" + str(min_season)
+    min_season = str(min_season)
+    max_season = str(max_season)
     
     if(year == None):
         print("Plotting most-recent year and seasons:" + str(seasons))
@@ -354,9 +359,8 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
     mj = st[st['isinseason'] == True]
     mj = mj.set_index("time")
     
-    clim_normal_min = datetime.datetime(1991, 1, 1)
-    clim_normal_max = datetime.datetime(2020, 12, 31)
-    
+
+    # Try to use 1991-2020, or user supplied range as climate normal. If not possible, get as close as you can.     
     if((min(st.time) > clim_normal_min) |  (max(st.time) < clim_normal_max)):
         print("WARNING: Station record does not cover assumed climate normal (1991-2020).")
         print("Using range " + str(max(clim_normal_min, min(st.time))) + ":" + str(min(clim_normal_max, max(st.time))) + " instead.")
@@ -403,7 +407,7 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
         print("print_var is not present in this weather station. Columns are: " + str(st.columns))
         return(None)
     
-    daily_vars = ["DC", "BUI", "DMC"] # Vars that are daily even with hourly station data
+    daily_vars = ["DC", "BUI", "DMC", "PREC_MM"] # Vars that are daily even with hourly station data
     
     fig, ax = plt.subplots()
     ax.fill_between(upper.index, upper[plot_var].rolling(5).mean(), lower[plot_var].rolling(5).mean(), 
