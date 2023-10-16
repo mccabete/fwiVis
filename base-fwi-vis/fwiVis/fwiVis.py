@@ -558,7 +558,7 @@ def fire_search(gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
     return(df_small)
 
 
-def load_large_fire(fireID, year = "2019", path_region = "WesternUS"):
+def load_large_fire(fireID, year = "2019", path_region = "WesternUS", layer='perimeter'):
     '''
     loads in largefire file based on fireID and layer, then preps it for "explore" by adding centriod data. Currently limited to one year. 
     
@@ -567,6 +567,7 @@ def load_large_fire(fireID, year = "2019", path_region = "WesternUS"):
         fireID (str): fireID offire of interest. Can be found in gdf files read in by prep_gdf and load_file. Can be selected interactivly form a gdf if use gdf.explore()
         year (str): Year that fires took place. Default to 2019. Availible options differ by path_region. 
         path_region (str): This constructs the path that the fires are stored in. WesternUS and CONUS availible. 
+        layer (str): The largefire layer to load. Options are 'perimeter', 'nfplist', 'fireline', and 'newfirepix'. 
     '''
     lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/F' + fireID + '_*')
     print(lf_files)
@@ -577,7 +578,7 @@ def load_large_fire(fireID, year = "2019", path_region = "WesternUS"):
         most_recent_file = [file for file in lf_files if lf_id in file][-1]
         largefire_dict[lf_id] = most_recent_file
     
-    gdf = pd.concat([gpd.read_file(file,layer='perimeter') for key, file in largefire_dict.items()], 
+    gdf = pd.concat([gpd.read_file(file,layer= layer) for key, file in largefire_dict.items()], 
                    ignore_index=True)
     gdf = gdf.to_crs('EPSG:4326')
     gdf['lon'] = gdf.centroid.x
@@ -889,3 +890,46 @@ def get_gpm_spread(full, pct_max_spread = 0.20):
     fire.spread_day[fire.t == min(fire.t)] = 2
     
     return(fire)
+
+def raw_pixel_times(fireID, date_string, year = "2023", path_region = "QuebecGlobalNRT_3571"):
+    '''
+    Function that finds raw times assosiated with VIIRS observations given a datetime and a fireID. 
+    Will open up serialization file pickle object to find data. 
+    Recommended to make the date-string as late in fire timeseries as possbile. 
+        
+    INPUTS:
+        
+        fireID (int): fireID of fire of interest.
+        date_string (str): Date of serialization file to read in. Format of %Y%m%d%p  ex: '20230801AM'.
+        year (str): Year that fires took place. Default to 2023. Availible options differ by path_region. 
+        path_region (str): This constructs the path that the fires are stored in. Default to QuebecGlobalNRT_3571/ 
+        
+    '''
+    import pickle
+    import pandas as pd
+    sys.path.insert(0, '/projects/fireatlas_nrt/')
+    path = "/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/"+ path_region + "/"+ year + "/Serialization/" + "20230801PM" + ".pkl"
+
+    # open a file, where you stored the pickled data
+    file = open(path, 'rb')
+
+    # dump information to that file
+    data = pickle.load(file)
+
+    # close the file
+    file.close()
+    
+    fireID = int(fireID)
+    
+    times = []
+    for i in range(0, len(data.fires[fireID].pixels)):
+        #print(i)
+        times.append(data.fires[fireID].pixels[i].datetime)
+    
+    times = pd.DataFrame(times, columns = ['t'])
+    times = times.sort_values(by = ['t'])
+    times["count"] = 1
+    times_grp = times.groupby("t").count()
+    times_grp["fireID"] = str(fireID)
+    
+    return(times_grp)
