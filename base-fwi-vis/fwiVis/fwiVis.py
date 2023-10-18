@@ -907,8 +907,11 @@ def raw_pixel_times(fireID, date_string, year = "2023", path_region = "QuebecGlo
     '''
     import pickle
     import pandas as pd
+    import os
+    import sys
+    
     sys.path.insert(0, '/projects/fireatlas_nrt/')
-    path = "/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/"+ path_region + "/"+ year + "/Serialization/" + "20230801PM" + ".pkl"
+    path = "/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/"+ path_region + "/"+ year + "/Serialization/" + date_string + ".pkl"
 
     # open a file, where you stored the pickled data
     file = open(path, 'rb')
