@@ -936,3 +936,21 @@ def raw_pixel_times(fireID, date_string, year = "2023", path_region = "QuebecGlo
     times_grp["fireID"] = str(fireID)
     
     return(times_grp)
+
+def ca_prov():
+    '''
+    Read in Canadian territory/ province vectors from 2021 https://data.opendatasoft.com/explore/dataset/georef-canada-province%40public/export/?disjunctive.prov_name_en&sort=prov_name_en. 
+    
+    No inputs. 
+    '''
+    tmp = gpd.read_file("/projects/old_shared/fire_weather_vis/ref_data/Canadian_prov/georef-canada-province@public.geojson")
+    tmp_names = gpd.read_file("/projects/old_shared/fire_weather_vis/ref_data/Canadian_prov/georef-canada-province@public.csv")
+
+    #neon.DomainID
+    tmp_names = tmp_names[['Official Name Province / Territory (English)', 'Official Name Province / Territory (French)']]
+    tmp_names = tmp_names.rename(columns={'Official Name Province / Territory (English)':"prov_name_en", 
+                                         'Official Name Province / Territory (French)': 'prov_name_fr' })
+
+    tmp = tmp.merge(tmp_names, on = "prov_name_fr")
+    tmp = tmp[['prov_name_fr', 'prov_name_en', 'geometry']]
+    return(tmp)
