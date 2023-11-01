@@ -558,7 +558,7 @@ def fire_search(gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
     return(df_small)
 
 
-def load_large_fire(fireID, year = "2019", path_region = "WesternUS", layer='perimeter'):
+def load_large_fire(fireID, year = "2019", path_region = "WesternUS", layer='perimeter', s3_path = False):
     '''
     loads in largefire file based on fireID and layer, then preps it for "explore" by adding centriod data. Currently limited to one year. 
     
@@ -567,19 +567,29 @@ def load_large_fire(fireID, year = "2019", path_region = "WesternUS", layer='per
         fireID (str): fireID offire of interest. Can be found in gdf files read in by prep_gdf and load_file. Can be selected interactivly form a gdf if use gdf.explore()
         year (str): Year that fires took place. Default to 2019. Availible options differ by path_region. 
         path_region (str): This constructs the path that the fires are stored in. WesternUS and CONUS availible. 
-        layer (str): The largefire layer to load. Options are 'perimeter', 'nfplist', 'fireline', and 'newfirepix'. 
+        layer (str): The largefire layer to load. Options are 'perimeter', 'nfplist', 'fireline', and 'newfirepix'.
+        s3_path (bool): If the path should be read in as an s3 path. Default False. Useful if hitting "transport endpoint is not connected" errors. 
     '''
-    lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/F' + fireID + '_*')
-    print(lf_files)
+    if(s3_path == True):
+        tmp = s3.glob('s3://maap-ops-workspace/shared/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/F' + fireID + '_*')
+        lf_files =  ["s3://" + t for t in tmp]
+    
+    else:
+        lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/F' + fireID + '_*')
+        #print(lf_files)
     lf_ids = list(set([file.split('Largefire/')[1].split('_')[0] for file in lf_files])) 
+    print(lf_ids)
     largefire_dict = dict.fromkeys(lf_ids)
     
     for lf_id in lf_ids:
         most_recent_file = [file for file in lf_files if lf_id in file][-1]
         largefire_dict[lf_id] = most_recent_file
-    
-    gdf = pd.concat([gpd.read_file(file,layer= layer) for key, file in largefire_dict.items()], 
-                   ignore_index=True)
+    if(s3_path == True):
+        gdf = pd.concat([gpd_read_file(file,layer= layer) for key, file in largefire_dict.items()], 
+                       ignore_index=True)
+    else:
+        gdf = pd.concat([gpd.read_file(file,layer= layer) for key, file in largefire_dict.items()], 
+                       ignore_index=True)
     gdf = gdf.to_crs('EPSG:4326')
     gdf['lon'] = gdf.centroid.x
     gdf['lat'] = gdf.centroid.y
