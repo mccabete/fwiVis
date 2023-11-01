@@ -964,3 +964,18 @@ def ca_prov():
     tmp = tmp.merge(tmp_names, on = "prov_name_fr")
     tmp = tmp[['prov_name_fr', 'prov_name_en', 'geometry']]
     return(tmp)
+
+
+def gpd_read_file(filename, parquet=False, **kwargs):
+    itry = 0
+    maxtries = 5
+    fun = gpd.read_parquet if parquet else gpd.read_file
+    while itry < maxtries:
+        try:
+            dat = fun(filename, **kwargs)
+            return dat
+        except Exception as e:
+            itry += 1
+            print(f"Attempt {itry}/{maxtries} failed.")
+            if not itry < maxtries:
+                raise e
