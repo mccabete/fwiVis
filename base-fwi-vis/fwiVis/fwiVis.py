@@ -1004,10 +1004,13 @@ def prep_fire_files(path, crs = "3571"):
 
 def remerge_largefire(fires):
     '''
-    If two final feds perimeters intersect spatialy, check if one ended before the other began. If yes, give it the ID of the earlier perimeter. 
-    Note: Could optionally be spitting out time differences, or sorting by them. For Quebec, was a max of 22 days, min of 1 day. Theoretically, not sure why the 1 day perimeter wasn't merged by feds. 
+    Function that takes a GeoDataFrame of a bunch of Larefire files, and figures otu which fire perimeters spatially intersect with one anouther, and when each fireID started and stoped. Useful for figureing out which fireID's merge into which other fireIDs, or troubleshooting if fires should be merged. 
+        
+    INPUTS:
+        
+        fires(GeoDataFrame): Geodataframe of mutliple largefire files. 
     '''
-    print("REMINDER: You never figured out how to combine merged fireIDs spatially! if you do fire-area differences, some weird stuff could happen!")
+    #print("REMINDER: You never figured out how to combine merged fireIDs spatially! if you do fire-area differences, some weird stuff could happen!")
     # Get an id, first/ last t per ID, and a geometry
     first_perims = fires[~fires.geometry.isnull()].groupby("fireID").t.min().reset_index()
     last_perims = fires[~fires.geometry.isnull()].groupby("fireID").t.max().reset_index()
@@ -1044,26 +1047,69 @@ def remerge_largefire(fires):
     id_map = id_map[["fireID","fireID_start_t",  "fireID_end_t", "mergeID", "mergeID_start_t", "mergeID_t"]]
     id_map["time_diff_fireIDend_mergeIDstart"] = id_map.fireID_end_t.astype('datetime64[ns]') - id_map.mergeID_start_t.astype('datetime64[ns]') ## Negative means that mergeID started after fireID ended
     
-    # Subset to IDs where one fire "ended" before the next fire began                
-    only_IDs_with_negative_dates = id_map[id_map.time_diff_fireIDend_mergeIDstart.dt.days < 0]
+#     # Subset to IDs where one fire "ended" before the next fire began                
+#     only_IDs_with_negative_dates = id_map[id_map.time_diff_fireIDend_mergeIDstart.dt.days < 0]
     
-    # Go through an reindex just the IDs that overlap in space but not time                
-    fires["old_id"] = ""
-    fire_ids = only_IDs_with_negative_dates.mergeID.unique() ## Gives the IDs of fires to be merged into anouther fire
+#     # Go through an reindex just the IDs that overlap in space but not time                
+#     fires["old_id"] = ""
+#     fire_ids = only_IDs_with_negative_dates.mergeID.unique() ## Gives the IDs of fires to be merged into anouther fire
 
-    for i in fire_ids:
-        min_t = id_with_max_time_check[id_with_max_time_check.mergeID == i].fireID_end_t.min()
-        sm_id_map = id_with_max_time_check[(id_with_max_time_check.mergeID == i) & (id_with_max_time_check.fireID_end_t == min_t)]
-        if(len(sm_id_map) == 0):
-            print("ID", i, " only merges with self")
-            fires["old_id"][fires.fireID == i] = i
-        else:
-            if(len(sm_id_map) != 1):
-                print("There are two perimeters that intersect with ID",i, " that started at the same time.")
-                print(sm_id_map)
-                break
+#     for i in fire_ids:
+#         min_t = id_with_max_time_check[id_with_max_time_check.mergeID == i].fireID_end_t.min()
+#         sm_id_map = id_with_max_time_check[(id_with_max_time_check.mergeID == i) & (id_with_max_time_check.fireID_end_t == min_t)]
+#         if(len(sm_id_map) == 0):
+#             print("ID", i, " only merges with self")
+#             fires["old_id"][fires.fireID == i] = i
+#         else:
+#             if(len(sm_id_map) != 1):
+#                 print("There are two perimeters that intersect with ID",i, " that started at the same time.")
+#                 print(sm_id_map)
+#                 break
 
-            fires["old_id"][fires.fireID == i] = i
-            fires["fireID"][fires.fireID == i] = str(*sm_id_map.fireID.values)
+#             fires["old_id"][fires.fireID == i] = i
+#             fires["fireID"][fires.fireID == i] = str(*sm_id_map.fireID.values)
                     
+#     return(fires)
+    return(id_map)
+
+def assign_last_perimeter(df, col_name = "is_last_perim"):
+    '''
+    Function to quickly identify the final perimeter of a fire in a dataframe of largefire files. 
+        
+    INPUTS:
+        
+        df (GeoDataFrame): Geodataframe of mutliple largefire files. 
+        col_name (str): column name of column to set to true when a perimeter is the final perimeter. 
+    '''
+    if(np.any(df.columns.isin([col_name]))):
+        max_t = df[~df.geometry.isna()].t.max()
+        df.loc[df.t == max_t, col_name] = True
+        return(df)
+    else:
+        print("Missing column" + " "+ col_name)
+        ValueError()
+        
+def keep_fires_seperate(newfire, fires):
+    '''
+    Function to isolate the effects of merging. If fire A and fire B merge, this function will assign the perimeters from A when A is indepenent the ID "A". When B is independet, those perimeters will get the ID "B". When A and B become close enough to merge, those perimeters get the id "A_B". This is useful for controling fire-area estimates for merging, and for isolating the ignitions of a fire. 
+    
+    INPUTS:
+    
+        newfire (DataFrame) output from remerge_largefire. A map of fire perimeters to fires it intersects with. 
+        fires (GeoDataFrame) geodataframe of all largefires. 
+    '''
+    fires.t = fires.t.astype("datetime64[ns]")
+    fires["modified_id"] = fires.fireID
+    newfire = newfire.sort_values(by = ["fireID", "fireID_start_t"])
+    newfire.mergeID_start_t = newfire.mergeID_start_t.astype("datetime64[ns]")
+    newfire.mergeID_t = newfire.mergeID_t.astype("datetime64[ns]")
+    for m in newfire.mergeID.unique(): ### For each id that had something merged into it
+        fireIDs = newfire[newfire.mergeID == m].fireID.unique() ## Get all the fireID of things that were merged into it
+        for f in fireIDs: ## For each of those things that were merged into to 
+            f = str(f)
+            #print(m)
+            #print(newfire[(newfire.fireID == i) & (newfire.mergeID == m)].mergeID_start_t.min())
+            row_mask = (fires.fireID == m) & (fires.t >= newfire[(newfire.fireID == f) & (newfire.mergeID == m)].fireID_end_t.min()) & (fires.t <= newfire[(newfire.fireID == f) & (newfire.mergeID == m)].mergeID_t.max())
+            #print(fires.loc[row_mask, ["modified_id"]])
+            fires.loc[row_mask, ["modified_id"]] = fires.loc[row_mask, ["modified_id"]] + "_" + str(f) #fires.loc[(fires.fireID == m) & (fires.t >= newfire[(newfire.fireID == i) & (newfire.mergeID == i)].mergeID_start_t.min()) & (fires.t <= newfire[(newfire.fireID == i) & (newfire.mergeID == i)].mergeID_t.max()), ["modified_id"]] + "_" + str(i)
     return(fires)
