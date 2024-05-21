@@ -1113,3 +1113,65 @@ def keep_fires_seperate(newfire, fires):
             #print(fires.loc[row_mask, ["modified_id"]])
             fires.loc[row_mask, ["modified_id"]] = fires.loc[row_mask, ["modified_id"]] + "_" + str(f) #fires.loc[(fires.fireID == m) & (fires.t >= newfire[(newfire.fireID == i) & (newfire.mergeID == i)].mergeID_start_t.min()) & (fires.t <= newfire[(newfire.fireID == i) & (newfire.mergeID == i)].mergeID_t.max()), ["modified_id"]] + "_" + str(i)
     return(fires)
+
+def get_nccs_url(pattern, url = 'https://portal.nccs.nasa.gov/datashare/GlobalFWI/ForecastFWIEXPERIMENTAL/QuebecAllFires.Radius.25.km.247.biggestFires/GEOS-5/GEOS-5.IMERGEARLY/chicletDataNoSmoothing/', ext = 'csv'):    
+    '''
+    Function to search files at NCCS url. Searcehd for specific pattern in files listed at a path. Is used specifically for checing the files availible for specific fireIDs. 
+    
+    INPUTS:
+    
+        pattern (str) string in the file name, ie a fireID. 
+        url (str) nccs url with multiple files.  
+    '''
+    file_list = []
+    for file in listFD(url, ext):
+        file_list.append(file)
+
+    try_pd = pd.DataFrame(file_list, columns= ["urls"])
+    size = try_pd[try_pd.urls.str.contains(pattern)].urls.values.size
+    if(size == 0):
+        print("No matches found to pattern. Returning None.")
+        return(None)
+    if(size >= 2):
+        print("Multiple matches found:")
+        print(try_pd[try_pd.urls.str.contains(pattern)].urls.values)
+        raise ValueError()
+    url = try_pd[try_pd.urls.str.contains(pattern)].urls.values[0]
+    return(url)
+
+def get_gridded_fwi(fireID):
+    '''
+    Function to extract FWI values from nccs. Returns a DF of FWI and FWI with a lead time of 8 days. 
+    
+    INPUTS:
+    
+        fireID (str) Id of fire.   
+    '''
+    # Get the URL for the file
+    fireID = str(fireID)
+    pattern = "FWI." + fireID
+    url = get_nccs_url(pattern = pattern)
+    
+    if(url is not None):
+        
+        # Get the DF
+        grid_FWI = pd.read_csv(url)
+        # Change names
+        grid_FWI = grid_FWI.rename(columns={'INITDATE': 't', 
+                                 "0":"FWI",
+                                 "1":"FWI_lead_1",
+                                 "2":"FWI_lead_2",
+                                 "3":"FWI_lead_3",
+                                 "4":"FWI_lead_4",
+                                 "5":"FWI_lead_5",
+                                 "6":"FWI_lead_6",
+                                 "7":"FWI_lead_7",
+                                 "8":"FWI_lead_8"
+                                })
+        # Change dates
+        grid_FWI.t = grid_FWI.t.astype("datetime64[ns]").dt.strftime('%Y-%m-%d 12:00:00')
+
+        # return
+        return(grid_FWI)
+    else:
+        return(None)
