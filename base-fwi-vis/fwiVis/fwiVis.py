@@ -1114,6 +1114,16 @@ def keep_fires_seperate(newfire, fires):
             fires.loc[row_mask, ["modified_id"]] = fires.loc[row_mask, ["modified_id"]] + "_" + str(f) #fires.loc[(fires.fireID == m) & (fires.t >= newfire[(newfire.fireID == i) & (newfire.mergeID == i)].mergeID_start_t.min()) & (fires.t <= newfire[(newfire.fireID == i) & (newfire.mergeID == i)].mergeID_t.max()), ["modified_id"]] + "_" + str(i)
     return(fires)
 
+def listFD(url, ext=''):
+    '''
+    NCCS retrival helper functions for getting gridded data
+    '''
+    page = requests.get(url).text
+    #print(page)
+    soup = BeautifulSoup(page, 'html.parser')
+    return [url + '/' + node.get('href') for node in soup.find_all('a') if node.get('href').endswith(ext)]
+
+
 def get_nccs_url(pattern, url = 'https://portal.nccs.nasa.gov/datashare/GlobalFWI/ForecastFWIEXPERIMENTAL/QuebecAllFires.Radius.25.km.247.biggestFires/GEOS-5/GEOS-5.IMERGEARLY/chicletDataNoSmoothing/', ext = 'csv'):    
     '''
     Function to search files at NCCS url. Searcehd for specific pattern in files listed at a path. Is used specifically for checing the files availible for specific fireIDs. 
