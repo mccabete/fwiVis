@@ -20,7 +20,9 @@ import folium
 from folium import plugins
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 
-def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/"):
+def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/19900101.NRT/FWI"):
+    
+    # "veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/
     '''
    Takes a list of stations at a files path. Subsets by a specific interpolation type, and then parses the paths to get station ID's lat, and lon.  
     
