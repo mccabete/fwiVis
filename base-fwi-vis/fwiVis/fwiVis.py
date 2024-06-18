@@ -20,9 +20,9 @@ import folium
 from folium import plugins
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 
-def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/19900101.NRT/FWI"):
-    
-    # "veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/
+
+def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/", https_path = False):
+
     '''
    Takes a list of stations at a files path. Subsets by a specific interpolation type, and then parses the paths to get station ID's lat, and lon.  
     
@@ -31,14 +31,22 @@ def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpCon
         files (list[str]): A list of station data paths from a directory. 
         st_id_map (panadas DF): sheet that maps station ID's to lat and lon. Found at ref_data/isd-history.csv
         inter_type (str): Interpolation type. Options availible are described in the ref_data README. 
-        path (str): The veda-data-store path to the FWI files. 
+        path (str): The veda-data-store path to the FWI files.
+        https_path (bool): Is this path an https path? 
     
     '''
     print("Searching for availible stations at" + path_s3)
-    file_inter = []
-    for path in files:
-        if inter_type in path:
-            file_inter.append(path)
+
+    if(https_path):
+        file_inter = []
+        for file in listFD(path_s3, "csv"):
+            #print(file)
+            file_inter.append(file)
+    else:
+        file_inter = []
+        for path in files:
+            if inter_type in path:
+                file_inter.append(path)
 
     df = []
     for i in file_inter:
@@ -68,9 +76,16 @@ def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpCon
             "WBAN": wban
         })
    
-
-   
     return(pd.DataFrame(df))
+
+def listFD(url, ext=''):
+    '''
+    NCCS retrival helper functions for getting gridded data
+    '''
+    page = requests.get(url).text
+    #print(page)
+    soup = BeautifulSoup(page, 'html.parser')
+    return [url + '/' + node.get('href') for node in soup.find_all('a') if node.get('href').endswith(ext)]
 
 
 def hour_fix (hr):
