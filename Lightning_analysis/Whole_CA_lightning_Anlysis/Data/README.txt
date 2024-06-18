@@ -5,7 +5,7 @@ These csvs are to tie lightning strikes to fires events in Canada 2023. They are
 
 2) The Earth Networks ground sensor network.  ICD for this product can be found publicly accessible at https://get.earthnetworks.com/hubfs/Customer%20Success/ENTLN%20Lightning%20Data%20Feed%20v4%20ICD.pdf
 
-3) The CIFFC data for the season. CIFFC releases updates on fires with a centroid, a start time, and a designation of human-casued or natrual causes. 
+3) The CIFFC data for the season. CIFFC releases updates on fires with a centroid, a start time, and a designation of human-casued or natural causes. 
 
 
 
