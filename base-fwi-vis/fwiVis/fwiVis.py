@@ -20,7 +20,7 @@ import folium
 from folium import plugins
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 
-def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/", https_path = False, **kwargs):
+def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/", https_path = False):
     '''
    Takes a list of stations at a files path. Subsets by a specific interpolation type, and then parses the paths to get station ID's lat, and lon.  
     
@@ -36,9 +36,10 @@ def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpCon
     print("Searching for availible stations at" + path_s3)
 
     if(https_path):
-        file_list = []
-        for file in listFD(url, ext):
-            file_list.append(file)
+        file_inter = []
+        for file in listFD(path_s3, "csv"):
+            #print(file)
+            file_inter.append(file)
     else:
         file_inter = []
         for path in files:
@@ -73,9 +74,16 @@ def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpCon
             "WBAN": wban
         })
    
-
-   
     return(pd.DataFrame(df))
+
+def listFD(url, ext=''):
+    '''
+    NCCS retrival helper functions for getting gridded data
+    '''
+    page = requests.get(url).text
+    #print(page)
+    soup = BeautifulSoup(page, 'html.parser')
+    return [url + '/' + node.get('href') for node in soup.find_all('a') if node.get('href').endswith(ext)]
 
 
 def hour_fix (hr):
