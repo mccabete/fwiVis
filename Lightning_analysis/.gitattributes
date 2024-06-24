@@ -1,3 +1,4 @@
 *.png filter=lfs diff=lfs merge=lfs -text
 #remerge_fix.ipynb filter=lfs diff=lfs merge=lfs -text
 *.csv filter=lfs diff=lfs merge=lfs -text
+Lightning_analysis/Quebec_all_fires_merged_together_06172024.csv filter=lfs diff=lfs merge=lfs -text
