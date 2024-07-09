@@ -19,9 +19,10 @@ import warnings
 import folium
 from folium import plugins
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
+from bs4 import BeautifulSoup
+import requests
 
-
-def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/", https_path = False):
+def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/19900101.NRT/FWI", https_path = False):
 
     '''
    Takes a list of stations at a files path. Subsets by a specific interpolation type, and then parses the paths to get station ID's lat, and lon.  
@@ -39,7 +40,7 @@ def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpCon
 
     if(https_path):
         file_inter = []
-        for file in listFD(path_s3, "csv"):
+        for file in listFD(https_path, "csv"):
             #print(file)
             file_inter.append(file)
     else:
@@ -47,7 +48,7 @@ def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpCon
         for path in files:
             if inter_type in path:
                 file_inter.append(path)
-
+#path_s3, "csv"
     df = []
     for i in file_inter:
         pt_1 = re.sub(path_s3, "", i)
@@ -294,6 +295,8 @@ def all_stations_search(st_dict, fire_center, id_key, max_dist = np.nan):
         
     return(names)
 
+
+
 ### Loading Fire files
 def load_file(date,layer='perimeter',handle_multi=False,
               only_lf=False,area_lim=5,show_progress=False, year = "2019", path_region = "WesternUS"):
@@ -417,6 +420,160 @@ def fire_search(gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
     #df = pd.DataFrame(fire_st_coloc)
     df_small = df[df.dist_km <= dist_max_km]
     return(df_small)
+
+
+def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat_lon = None, USAF_WBAN = None, seasons = [5, 6, 7], year = None, plot_var = "FWI", clim_normal_min = datetime.datetime(1991, 1, 1), 
+    clim_normal_max = datetime.datetime(2020, 12, 31)):
+    '''
+    Plots weather station data against historic means. Stations can be plotted form a file path, an USAF_WBAN id, or a lat and lon combination. If no station is at the exact lat lon, the function will search for the closest one. 
+    
+    INPUTS:
+        st_dict (dict): A  dictionary with "Lat" and "Lon" entries for each weather station. A dictionary of the output from st_avail.
+        stations (DataFrame): a dataframe as outputted by st_avail. A dataframe with columns for station lat, lon, and ID.
+        st_id_map (DataFrame): a dataframe that connects Station IDs to full names and locations. 
+        title (str):  An optional title for the plot. Optional. "None" is default. If "None", title will be the WMO ID of the station. 
+        path (str):  Path to staion data csv. Optional. Default to "None". 
+        lat_lon (list): A list of the form [lat_float, lon_float]. Optional. If lat and lon are not exact matches, function will search for closest station. 
+        USAF_WBAN (list): List of the form [USAF, WBAN]. Optional. 
+        seasons (list): List with single-digit representations of months to include in averaging across years. Default [5, 6, 7] or May, June and July. 
+        year (str): The year of station data to compare to historic means. Defaults to "None", where the most recent data will be compared.
+        plot_var (str): Variable to plot. Defaults to "FWI". 
+        clim_normal_min (datetime): minimum period for climate normal. Defaults to January 1, 1991. If station data doesn not extend as far back as minimum, normal will be on min of station data and will throw a warning. 
+        clim_normal_max (datetime): Maximum period for climate normal. Defaults to December 31st, 2020. If station data doesn not extend into maximum, normal will be on max of station data and will throw a warning. 
+    '''
+    
+    if(all([path == None, lat_lon == None, USAF_WBAN == None])):
+        print("Error: No specifying information provided. Please include a path to station, a lat-lon, or a USAF_WBAN id. ")
+    if(path == None):
+        if( not USAF_WBAN == None ):
+            st = stations.loc[(stations.USAF == USAF_WBAN[0]) & (stations.WBAN == USAF_WBAN[1])]
+            path = "s3://" + st.File_path.iloc[0]
+        else:
+            st = stations.loc[(stations.Lat == lat_lon[0]) & (stations.Lon== lat_lon[1])]
+            if(len(st) == 0):
+                st_cls = fv.closest(st_dict, pd.DataFrame(data = {"Lat" :[lat_lon[0]], "Lon" :  [lat_lon[1]]}))
+                st = stations.loc[(stations.Lat == st_cls["Lat"]) & (stations.Lon == st_cls["Lon"])]
+                
+            path = st.File_path.iloc[0]
+    
+    if(title == None):
+        split = re.split(pattern = "/", string = path)
+        split = split[-1]
+        WMO_id = re.sub(pattern = "\..*", repl = "",  string = split)
+        extra = ""
+        if("s3://" in path):  
+            id_split = re.split(pattern = "-", string = WMO_id)
+            labs = st_id_map[(st_id_map.USAF == str(id_split[0])) & (st_id_map.WBAN == str(id_split[1]))]
+            extra = str(*labs['STATION NAME'])  + str(*labs['CTRY'])+ ", " + str(*labs['STATE'])
+        title = "Weather Station" + extra +  "WMO ID (" + WMO_id + ")"
+
+
+    st = pd.read_csv(path)
+    if(not np.any(st.columns.isin(["HH"]))):
+         st['HH'] = '12'
+    st.YYYY = st.YYYY.astype("int")
+    st.MM = st.MM.astype("int")
+    st.DD = st.DD.astype("int")
+    st.HH = st.HH.astype("int")
+    st = date_convert(st)
+    
+    max_season = max(seasons)
+    if(max_season <= 9):
+        max_season = "0" + str(max_season)
+    min_season = min(seasons)
+    if(min_season <= 9):
+        min_season = "0" + str(min_season)
+    min_season = str(min_season)
+    max_season = str(max_season)
+    
+    if(year == None):
+        print("Plotting most-recent year and seasons:" + str(seasons))
+        #ctime = datetime.datetime.now()
+        #year = str(ctime.year)
+        year = str(max(st.time.dt.year))
+    else:
+        year = year
+    
+    max_day = year + "-" + max_season + "-28 23:00:00" ## Hack
+    min_day = year + "-" + min_season + "-01 00:00:00"
+        
+
+    st['isinseason'] = st.MM.isin(seasons) # Is May, June or July? 
+    mj = st[st['isinseason'] == True]
+    mj = mj.set_index("time")
+    
+
+    # Try to use 1991-2020, or user supplied range as climate normal. If not possible, get as close as you can.     
+    if((min(st.time) > clim_normal_min) |  (max(st.time) < clim_normal_max)):
+        print("WARNING: Station record does not cover assumed climate normal (1991-2020).")
+        print("Using range " + str(max(clim_normal_min, min(st.time))) + ":" + str(min(clim_normal_max, max(st.time))) + " instead.")
+        mj = mj[mj.index > max(clim_normal_min, min(st.time))]
+        mj = mj[mj.index < min(clim_normal_max, max(st.time))]
+    mj = mj[mj.index.strftime('%m-%d') != '02-29'] # Drop leap-day becuase it's only sampled once every 4 years
+    mean_quant = mj.groupby([mj.index.day.astype("int"), mj.index.month.astype("int")]).mean(numeric_only=True)
+
+
+    dates = ( year + "-" + mean_quant.index.get_level_values(level=1).astype("str") + "-" + mean_quant.index.get_level_values(level=0).astype("str"))
+
+    mean_quant["dates"] = pd.to_datetime(dates)
+    mean_quant = mean_quant.sort_values(by = "dates")
+    mean_quant.set_index("dates", inplace = True)
+
+
+    upper = mj.groupby([mj.index.day, mj.index.month]).quantile((1-0.025), numeric_only=True)
+    upper["dates"] = pd.to_datetime(dates)
+    upper = upper.sort_values(by = "dates")
+    upper.set_index("dates", inplace = True)
+
+    lower = mj.groupby([mj.index.day, mj.index.month]).quantile((0.025),  numeric_only=True)
+    lower["dates"] = pd.to_datetime(dates)
+    lower = lower.sort_values(by = "dates")
+    lower.set_index("dates", inplace = True)
+
+
+    mid_lower = mj.groupby([mj.index.day, mj.index.month]).quantile((0.25),  numeric_only=True)
+    mid_lower["dates"] = pd.to_datetime(dates)
+    mid_lower = mid_lower.sort_values(by = "dates")
+    mid_lower.set_index("dates", inplace = True)
+
+
+    mid_upper = mj.groupby([mj.index.day, mj.index.month]).quantile((0.75),  numeric_only=True)
+    mid_upper["dates"] = pd.to_datetime(dates)
+    mid_upper = mid_upper.sort_values(by = "dates")
+    mid_upper.set_index("dates", inplace = True)
+    
+    st = st.sort_values(by = ["time"])
+    try:
+        upper[plot_var].rolling(5).mean()
+    except:
+        print("print_var is not present in this weather station. Columns are: " + str(st.columns))
+        return(None)
+    
+    daily_vars = ["DC", "BUI", "DMC", "PREC_MM"] # Vars that are daily even with hourly station data
+    
+    fig, ax = plt.subplots()
+    ax.fill_between(upper.index, upper[plot_var].rolling(5).mean(), lower[plot_var].rolling(5).mean(), 
+                    facecolor='grey', 
+                    alpha=0.2,
+                    label= "95th Percentile")
+    ax.fill_between(mid_upper.index, mid_upper[plot_var].rolling(5).mean(), mid_lower[plot_var].rolling(5).mean(), 
+                    facecolor='grey', 
+                    alpha=0.4,
+                    label= "25th Percentile")
+    ax.plot(mean_quant.index, mean_quant[plot_var].rolling(5).mean(), 
+            color = "black",
+            label= "Historic Mean Per Day")
+    if(plot_var in daily_vars):
+        tmp = st.dropna()
+        ax.plot(tmp[(tmp.time >= min_day) & (tmp.time <= max_day)].time.astype('datetime64[ns]'), tmp[(tmp.time >= min_day) & (tmp.time <= max_day)][plot_var])
+    else:
+        ax.plot(st[(st.time >= min_day) & (st.time <= max_day)].time.astype('datetime64[ns]'), st[(st.time >= min_day) & (st.time <= max_day)][plot_var])
+   
+    ax.set_ylabel(plot_var)
+    ax.set_title(title)
+    ax.legend()
+    fig.autofmt_xdate()
+    return(st)
 
 
 def load_large_fire(fireID, year = "2019", path_region = "WesternUS"):
