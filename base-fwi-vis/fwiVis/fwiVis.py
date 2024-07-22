@@ -22,8 +22,9 @@ warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 from bs4 import BeautifulSoup
 import requests
 
-def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/19900101.NRT/FWI", https_path = False):
 
+def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/19900101.NRT/FWI", https_path = False):
+    
     '''
    Takes a list of stations at a files path. Subsets by a specific interpolation type, and then parses the paths to get station ID's lat, and lon.  
     
@@ -36,32 +37,32 @@ def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpCon
         https_path (bool): Is this path an https path? 
     
     '''
-    print("Searching for availible stations at" + path_s3)
-
+    print("Hi there: Searching for availible stations at" + path_s3)
     if(https_path):
         file_inter = []
-        for file in listFD(https_path, "csv"):
-            #print(file)
+        for file in listFD(path_s3, "csv"):
             file_inter.append(file)
     else:
         file_inter = []
         for path in files:
             if inter_type in path:
                 file_inter.append(path)
-#path_s3, "csv"
     df = []
     for i in file_inter:
         pt_1 = re.sub(path_s3, "", i)
         #pt_2 = re.sub(".spline.DailyFWIfromHourlyInterp.csv","",  pt_1)
-        pt_2 = re.sub(("." + inter_type + ".csv"),"",  pt_1)
-        pt_3 = pt_2.split("-")
-        usaf = re.sub(r'[^0-9]', '',pt_3[0]) ## Sometimes ID had extra characters? 
-        #print(usaf)
-        wban = re.sub(r'[^0-9]', '',pt_3[1]) 
-        #print(wban)
+        pt_2 = re.sub(("." + inter_type + ".csv"), "", pt_1)
+        pt_3 = pt_2.split("/FWI/")
+        print(pt_3)
+        pt_4 = pt_3[1]
+        pt_5 = pt_4.split("-")
+        usaf = re.sub(r'[^0-9]', '',pt_5[0]) ## Sometimes ID had extra characters? 
+        print(usaf)
+        wban = re.sub(r'[^0-9]', '',pt_5[1]) 
+        print(wban)
         
         st = st_id_map.loc[(st_id_map.USAF == usaf) | (st_id_map.WBAN == wban)]
-        #print(st)
+        print(st)
         if(st.empty):
             print("Empty Dataframe")
             break
@@ -80,9 +81,6 @@ def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpCon
     return(pd.DataFrame(df))
 
 def listFD(url, ext=''):
-    '''
-    NCCS retrival helper functions for getting gridded data
-    '''
     page = requests.get(url).text
     #print(page)
     soup = BeautifulSoup(page, 'html.parser')
@@ -142,11 +140,12 @@ def get_st(lat, lon, stations, flag_bad = True):
         
     st = stations.loc[(stations.Lat == lat) & (stations.Lon == lon)]
     #dat = pd.read_csv("s3://veda-data-store-staging/EIS/other/station-FWI/20000101.20220907.hrlyInterp/FWI/727970-94240.spline.DailyFWIfromHourlyInterp.csv")
-    dat = pd.read_csv(("s3://" + st.File_path.iloc[0]), index_col = False)
+    dat = pd.read_csv((st.File_path.iloc[0]), index_col = False)
+    #"s3://" + 
     dat = date_convert(dat)
     
     if flag_bad:
-        mask = dat['OBSMINUTEDIFFTEMP'].loc[dat.OBSMINUTEDIFFTEMP > 20]  ## Kluge. Basically, use this as a flag. 
+        mask = dat['OBSMINUTEDIFF_TEMP'].loc[dat.OBSMINUTEDIFF_TEMP > 20]  ## Kluge. Basically, use this as a flag. 
         dat.iloc[mask.index, 4:-4 ] = np.nan
     
     return(dat)
