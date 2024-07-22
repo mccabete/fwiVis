@@ -21,7 +21,7 @@ from folium import plugins
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 from bs4 import BeautifulSoup
 import requests
-
+import datetime
 
 def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/19900101.NRT/FWI", https_path = False):
     
@@ -37,7 +37,7 @@ def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpCon
         https_path (bool): Is this path an https path? 
     
     '''
-    print("Hi there: Searching for availible stations at" + path_s3)
+    print("Searching for availible stations at" + path_s3)
     if(https_path):
         file_inter = []
         for file in listFD(path_s3, "csv"):
@@ -53,16 +53,12 @@ def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpCon
         #pt_2 = re.sub(".spline.DailyFWIfromHourlyInterp.csv","",  pt_1)
         pt_2 = re.sub(("." + inter_type + ".csv"), "", pt_1)
         pt_3 = pt_2.split("/FWI/")
-        print(pt_3)
         pt_4 = pt_3[1]
         pt_5 = pt_4.split("-")
         usaf = re.sub(r'[^0-9]', '',pt_5[0]) ## Sometimes ID had extra characters? 
-        print(usaf)
         wban = re.sub(r'[^0-9]', '',pt_5[1]) 
-        print(wban)
         
         st = st_id_map.loc[(st_id_map.USAF == usaf) | (st_id_map.WBAN == wban)]
-        print(st)
         if(st.empty):
             print("Empty Dataframe")
             break
@@ -422,7 +418,8 @@ def fire_search(gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
 
 
 def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat_lon = None, USAF_WBAN = None, seasons = [5, 6, 7], year = None, plot_var = "FWI", clim_normal_min = datetime.datetime(1991, 1, 1), 
-    clim_normal_max = datetime.datetime(2020, 12, 31)):
+clim_normal_max = datetime.datetime(2020, 12, 31)):
+
     '''
     Plots weather station data against historic means. Stations can be plotted form a file path, an USAF_WBAN id, or a lat and lon combination. If no station is at the exact lat lon, the function will search for the closest one. 
     
@@ -519,24 +516,24 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
     mean_quant.set_index("dates", inplace = True)
 
 
-    upper = mj.groupby([mj.index.day, mj.index.month]).quantile((1-0.025), numeric_only=True)
+    upper = mj.select_dtypes(include='number').groupby([mj.index.day, mj.index.month]).quantile((1-0.025), numeric_only=True)
     upper["dates"] = pd.to_datetime(dates)
     upper = upper.sort_values(by = "dates")
     upper.set_index("dates", inplace = True)
 
-    lower = mj.groupby([mj.index.day, mj.index.month]).quantile((0.025),  numeric_only=True)
+    lower = mj.select_dtypes(include='number').groupby([mj.index.day, mj.index.month]).quantile((0.025),  numeric_only=True)
     lower["dates"] = pd.to_datetime(dates)
     lower = lower.sort_values(by = "dates")
     lower.set_index("dates", inplace = True)
 
 
-    mid_lower = mj.groupby([mj.index.day, mj.index.month]).quantile((0.25),  numeric_only=True)
+    mid_lower = mj.select_dtypes(include='number').groupby([mj.index.day, mj.index.month]).quantile((0.25),  numeric_only=True)
     mid_lower["dates"] = pd.to_datetime(dates)
     mid_lower = mid_lower.sort_values(by = "dates")
     mid_lower.set_index("dates", inplace = True)
 
 
-    mid_upper = mj.groupby([mj.index.day, mj.index.month]).quantile((0.75),  numeric_only=True)
+    mid_upper = mj.select_dtypes(include='number').groupby([mj.index.day, mj.index.month]).quantile((0.75),  numeric_only=True)
     mid_upper["dates"] = pd.to_datetime(dates)
     mid_upper = mid_upper.sort_values(by = "dates")
     mid_upper.set_index("dates", inplace = True)
@@ -564,16 +561,16 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
             label= "Historic Mean Per Day")
     if(plot_var in daily_vars):
         tmp = st.dropna()
-        ax.plot(tmp[(tmp.time >= min_day) & (tmp.time <= max_day)].time.astype('datetime64[ns]'), tmp[(tmp.time >= min_day) & (tmp.time <= max_day)][plot_var])
+        ax.plot(tmp[(tmp.time >= min_day) & (tmp.time <= max_day)].time.astype('datetime64[ns]'), tmp[(tmp.time >= min_day) & (tmp.time <= max_day)][plot_var], color = 'blue', label='Current')
     else:
-        ax.plot(st[(st.time >= min_day) & (st.time <= max_day)].time.astype('datetime64[ns]'), st[(st.time >= min_day) & (st.time <= max_day)][plot_var])
+        ax.plot(st[(st.time >= min_day) & (st.time <= max_day)].time.astype('datetime64[ns]'), st[(st.time >= min_day) & (st.time <= max_day)][plot_var], color='blue', label='Current')
    
     ax.set_ylabel(plot_var)
+    ax.set_xlabel('Date')
     ax.set_title(title)
     ax.legend()
     fig.autofmt_xdate()
-    return(st)
-
+    return st
 
 def load_large_fire(fireID, year = "2019", path_region = "WesternUS"):
     '''
