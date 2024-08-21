@@ -20,8 +20,12 @@ import folium
 from folium import plugins
 warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 import datetime
+import requests
+from bs4 import BeautifulSoup
 
-def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/"):
+
+def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/19900101.NRT/FWI", https_path = False):
+    
     '''
    Takes a list of stations at a files path. Subsets by a specific interpolation type, and then parses the paths to get station ID's lat, and lon.  
     
@@ -30,28 +34,32 @@ def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpCon
         files (list[str]): A list of station data paths from a directory. 
         st_id_map (panadas DF): sheet that maps station ID's to lat and lon. Found at ref_data/isd-history.csv
         inter_type (str): Interpolation type. Options availible are described in the ref_data README. 
-        path (str): The veda-data-store path to the FWI files. 
+        path (str): The veda-data-store path to the FWI files.
+        https_path (bool): Is this path an https path? 
     
     '''
     print("Searching for availible stations at" + path_s3)
-    file_inter = []
-    for path in files:
-        if inter_type in path:
-            file_inter.append(path)
-
+    if(https_path):
+        file_inter = []
+        for file in listFD(path_s3, "csv"):
+            file_inter.append(file)
+    else:
+        file_inter = []
+        for path in files:
+            if inter_type in path:
+                file_inter.append(path)
     df = []
     for i in file_inter:
         pt_1 = re.sub(path_s3, "", i)
         #pt_2 = re.sub(".spline.DailyFWIfromHourlyInterp.csv","",  pt_1)
-        pt_2 = re.sub(("." + inter_type + ".csv"),"",  pt_1)
-        pt_3 = pt_2.split("-")
-        usaf = re.sub(r'[^0-9]', '',pt_3[0]) ## Sometimes ID had extra characters? 
-        #print(usaf)
-        wban = re.sub(r'[^0-9]', '',pt_3[1]) 
-        #print(wban)
+        pt_2 = re.sub(("." + inter_type + ".csv"), "", pt_1)
+        pt_3 = pt_2.split("/FWI/")
+        pt_4 = pt_3[1]
+        pt_5 = pt_4.split("-")
+        usaf = re.sub(r'[^0-9]', '',pt_5[0]) ## Sometimes ID had extra characters? 
+        wban = re.sub(r'[^0-9]', '',pt_5[1]) 
         
         st = st_id_map.loc[(st_id_map.USAF == usaf) | (st_id_map.WBAN == wban)]
-        #print(st)
         if(st.empty):
             print("Empty Dataframe")
             break
@@ -67,9 +75,57 @@ def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpCon
             "WBAN": wban
         })
    
+    return(pd.DataFrame(df))
+
+# def st_avail(files, st_id_map, inter_type = "spline.HourlyFWIFromHourlyInterpContinuous", path_s3 = "veda-data-store-staging/EIS/other/station-FWI/20000101.20220925.hrlyInterp/FWI/"):
+#     '''
+#    Takes a list of stations at a files path. Subsets by a specific interpolation type, and then parses the paths to get station ID's lat, and lon.  
+    
+#     INPUTS:
+        
+#         files (list[str]): A list of station data paths from a directory. 
+#         st_id_map (panadas DF): sheet that maps station ID's to lat and lon. Found at ref_data/isd-history.csv
+#         inter_type (str): Interpolation type. Options availible are described in the ref_data README. 
+#         path (str): The veda-data-store path to the FWI files. 
+    
+#     '''
+#     print("Searching for availible stations at" + path_s3)
+#     file_inter = []
+#     for path in files:
+#         if inter_type in path:
+#             file_inter.append(path)
+
+#     df = []
+#     for i in file_inter:
+#         pt_1 = re.sub(path_s3, "", i)
+#         #pt_2 = re.sub(".spline.DailyFWIfromHourlyInterp.csv","",  pt_1)
+#         pt_2 = re.sub(("." + inter_type + ".csv"),"",  pt_1)
+#         pt_3 = pt_2.split("-")
+#         usaf = re.sub(r'[^0-9]', '',pt_3[0]) ## Sometimes ID had extra characters? 
+#         #print(usaf)
+#         wban = re.sub(r'[^0-9]', '',pt_3[1]) 
+#         #print(wban)
+        
+#         st = st_id_map.loc[(st_id_map.USAF == usaf) | (st_id_map.WBAN == wban)]
+#         #print(st)
+#         if(st.empty):
+#             print("Empty Dataframe")
+#             break
+        
+#         lat = st.LAT.iloc[0]
+#         lon = st.LON.iloc[0]
+
+#         df.append({
+#             "File_path": i,
+#             "Lat": lat,  
+#             "Lon": lon,
+#             "USAF": usaf,
+#             "WBAN": wban
+#         })
+   
 
    
-    return(pd.DataFrame(df))
+#     return(pd.DataFrame(df))
 
 
 def hour_fix (hr):
@@ -110,6 +166,30 @@ def date_convert(dat_time):
 
     return(dat_time)
 
+# def get_st(lat, lon, stations, flag_bad = True):
+#     '''
+#     Read in data from a station at a lat long. Optionally, set data where interpolation may be too far from data as NaN. 
+    
+#     INPUTS:
+        
+#         lat (str):  A  lattitude
+#         lon (str):  A longitude
+#         stations (DataFrame): a dataframe as outputted by st_avail. A dataframe with columns for station lat, lon, and ID. 
+#         flag_bad (bool): Filter out data where the difference in the observation and the interpolation is over 20. This could indicate that the interpolation is way off. Default to True. 
+    
+#     '''
+        
+#     st = stations.loc[(stations.Lat == lat) & (stations.Lon == lon)]
+#     #dat = pd.read_csv("s3://veda-data-store-staging/EIS/other/station-FWI/20000101.20220907.hrlyInterp/FWI/727970-94240.spline.DailyFWIfromHourlyInterp.csv")
+#     dat = pd.read_csv(("s3://" + st.File_path.iloc[0]), index_col = False)
+#     dat = date_convert(dat)
+    
+#     if flag_bad:
+#         mask = dat['OBSMINUTEDIFFTEMP'].loc[dat.OBSMINUTEDIFFTEMP > 20]  ## Kluge. Basically, use this as a flag. 
+#         dat.iloc[mask.index, 4:-4 ] = np.nan
+    
+#     return(dat)
+
 def get_st(lat, lon, stations, flag_bad = True):
     '''
     Read in data from a station at a lat long. Optionally, set data where interpolation may be too far from data as NaN. 
@@ -125,11 +205,17 @@ def get_st(lat, lon, stations, flag_bad = True):
         
     st = stations.loc[(stations.Lat == lat) & (stations.Lon == lon)]
     #dat = pd.read_csv("s3://veda-data-store-staging/EIS/other/station-FWI/20000101.20220907.hrlyInterp/FWI/727970-94240.spline.DailyFWIfromHourlyInterp.csv")
-    dat = pd.read_csv(("s3://" + st.File_path.iloc[0]), index_col = False)
+    if (st.File_path.iloc[0].str.contains("https")):
+        dat = pd.read_csv((st.File_path.iloc[0]), index_col = False)
+        #"s3://" + 
+      
+    else:
+        print(f'{File_path.iloc[0]} is not an https, assuming s3.')
+        dat = pd.read_csv(("s3://" + st.File_path.iloc[0]), index_col = False)
+
     dat = date_convert(dat)
-    
     if flag_bad:
-        mask = dat['OBSMINUTEDIFFTEMP'].loc[dat.OBSMINUTEDIFFTEMP > 20]  ## Kluge. Basically, use this as a flag. 
+        mask = dat['OBSMINUTEDIFF_TEMP'].loc[dat.OBSMINUTEDIFF_TEMP > 20]  ## Kluge. Basically, use this as a flag. 
         dat.iloc[mask.index, 4:-4 ] = np.nan
     
     return(dat)
