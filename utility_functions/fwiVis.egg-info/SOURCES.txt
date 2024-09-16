@@ -1,0 +1,9 @@
+setup.py
+fwiVis/__init__.py
+fwiVis/fwiVis.py
+fwiVis.egg-info/PKG-INFO
+fwiVis.egg-info/SOURCES.txt
+fwiVis.egg-info/dependency_links.txt
+fwiVis.egg-info/not-zip-safe
+fwiVis.egg-info/requires.txt
+fwiVis.egg-info/top_level.txt
