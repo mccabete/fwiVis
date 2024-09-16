@@ -1,0 +1,11 @@
+s3fs
+numpy
+pandas
+geopandas
+matplotlib
+xarray
+rioxarray
+rasterio
+geocube
+shapely
+folium

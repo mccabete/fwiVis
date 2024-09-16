@@ -1,0 +1,18 @@
+Metadata-Version: 2.1
+Name: fwiVis
+Version: 0.1
+Summary: A package to load up and visualize FWI data next to fire objects genereated from VIIRS
+Home-page: #
+Author: Tempest McCabe
+Author-email: tmccabe@umd.edu
+Requires-Dist: s3fs
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: geopandas
+Requires-Dist: matplotlib
+Requires-Dist: xarray
+Requires-Dist: rioxarray
+Requires-Dist: rasterio
+Requires-Dist: geocube
+Requires-Dist: shapely
+Requires-Dist: folium
