@@ -49,12 +49,17 @@ def st_avail(files, st_id_map, inter_type = "linear.HourlyFWIFromHourlyInterpCon
             if inter_type in path:
                 file_inter.append(path)
     df = []
+    
+    
     for i in file_inter:
         pt_1 = re.sub(path_s3, "", i)
         #pt_2 = re.sub(".spline.DailyFWIfromHourlyInterp.csv","",  pt_1)
         pt_2 = re.sub(("." + inter_type + ".csv"), "", pt_1)
         pt_3 = pt_2.split("/FWI/")
-        pt_4 = pt_3[1]
+        if(not https_path):
+            pt_4 = pt_3[1]
+        else:
+            pt_4 = re.sub("/", "", pt_3[0]) 
         pt_5 = pt_4.split("-")
         usaf = re.sub(r'[^0-9]', '',pt_5[0]) ## Sometimes ID had extra characters? 
         wban = re.sub(r'[^0-9]', '',pt_5[1]) 
@@ -365,8 +370,7 @@ def all_stations_search(st_dict, fire_center, id_key, max_dist = np.nan):
     return(names)
 
 
-def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat_lon = None, USAF_WBAN = None, seasons = [5, 6, 7], year = None, plot_var = "FWI", clim_normal_min = datetime.datetime(1991, 1, 1), 
-    clim_normal_max = datetime.datetime(2020, 12, 31)):
+def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat_lon = None, USAF_WBAN = None, seasons = [5, 6, 7], year = None, plot_var = "FWI", clim_normal_min = datetime.datetime(1991, 1, 1), clim_normal_max = datetime.datetime(2020, 12, 31), https_path = False):
     '''
     Plots weather station data against historic means. Stations can be plotted form a file path, an USAF_WBAN id, or a lat and lon combination. If no station is at the exact lat lon, the function will search for the closest one. 
     
@@ -383,6 +387,7 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
         plot_var (str): Variable to plot. Defaults to "FWI". 
         clim_normal_min (datetime): minimum period for climate normal. Defaults to January 1, 1991. If station data doesn not extend as far back as minimum, normal will be on min of station data and will throw a warning. 
         clim_normal_max (datetime): Maximum period for climate normal. Defaults to December 31st, 2020. If station data doesn not extend into maximum, normal will be on max of station data and will throw a warning. 
+        https_path (bool): Will station data be coming from an https path? 
     '''
     
     if(all([path == None, lat_lon == None, USAF_WBAN == None])):
@@ -390,14 +395,19 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
     if(path == None):
         if( not USAF_WBAN == None ):
             st = stations.loc[(stations.USAF == USAF_WBAN[0]) & (stations.WBAN == USAF_WBAN[1])]
-            path = "s3://" + st.File_path.iloc[0]
+            if(https_path == False):
+                path = "s3://" + st.File_path.iloc[0]
+            if(https_path == True):
+                path = st.File_path.iloc[0]
         else:
             st = stations.loc[(stations.Lat == lat_lon[0]) & (stations.Lon== lat_lon[1])]
             if(len(st) == 0):
                 st_cls = closest(st_dict, pd.DataFrame(data = {"Lat" :[lat_lon[0]], "Lon" :  [lat_lon[1]]}))
                 st = stations.loc[(stations.Lat == st_cls["Lat"]) & (stations.Lon == st_cls["Lon"])]
-                
-            path = "s3://" + st.File_path.iloc[0]
+            if(https_path == False):   
+                path = "s3://" + st.File_path.iloc[0]
+            if(https_path == True):
+                path = st.File_path.iloc[0]
     
     if(title == None):
         split = re.split(pattern = "/", string = path)
@@ -405,6 +415,10 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
         WMO_id = re.sub(pattern = "\..*", repl = "",  string = split)
         extra = ""
         if("s3://" in path):  
+            id_split = re.split(pattern = "-", string = WMO_id)
+            labs = st_id_map[(st_id_map.USAF == str(id_split[0])) & (st_id_map.WBAN == str(id_split[1]))]
+            extra = str(*labs['STATION NAME'])  + str(*labs['CTRY'])+ ", " + str(*labs['STATE'])
+        if("https" in path):  
             id_split = re.split(pattern = "-", string = WMO_id)
             labs = st_id_map[(st_id_map.USAF == str(id_split[0])) & (st_id_map.WBAN == str(id_split[1]))]
             extra = str(*labs['STATION NAME'])  + str(*labs['CTRY'])+ ", " + str(*labs['STATE'])
@@ -454,8 +468,8 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
         mj = mj[mj.index < min(clim_normal_max, max(st.time))]
     
     mj = mj[mj.index.strftime('%m-%d') != '02-29'] # Drop leap-day becuase it's only sampled once every 4 years
-
-    mean_quant = mj.groupby([mj.index.day, mj.index.month]).mean()
+    #return(mj)
+    mean_quant = mj.groupby([mj.index.day, mj.index.month]).mean(numeric_only=True)
 
     dates = ( year + "-" + mean_quant.index.get_level_values(level=1).astype("str") + "-" + mean_quant.index.get_level_values(level=0).astype("str"))
 
@@ -464,24 +478,24 @@ def plot_st_history(st_id_map, st_dict, stations, title = None, path = None, lat
     mean_quant.set_index("dates", inplace = True)
 
 
-    upper = mj.groupby([mj.index.day, mj.index.month]).quantile((1-0.025))
+    upper = mj.groupby([mj.index.day, mj.index.month]).quantile((1-0.025), numeric_only=True)
     upper["dates"] = pd.to_datetime(dates)
     upper = upper.sort_values(by = "dates")
     upper.set_index("dates", inplace = True)
 
-    lower = mj.groupby([mj.index.day, mj.index.month]).quantile(0.025)
+    lower = mj.groupby([mj.index.day, mj.index.month]).quantile(0.025, numeric_only=True)
     lower["dates"] = pd.to_datetime(dates)
     lower = lower.sort_values(by = "dates")
     lower.set_index("dates", inplace = True)
 
 
-    mid_lower = mj.groupby([mj.index.day, mj.index.month]).quantile(0.25)
+    mid_lower = mj.groupby([mj.index.day, mj.index.month]).quantile(0.25, numeric_only=True)
     mid_lower["dates"] = pd.to_datetime(dates)
     mid_lower = mid_lower.sort_values(by = "dates")
     mid_lower.set_index("dates", inplace = True)
 
 
-    mid_upper = mj.groupby([mj.index.day, mj.index.month]).quantile(0.75)
+    mid_upper = mj.groupby([mj.index.day, mj.index.month]).quantile(0.75, numeric_only=True)
     mid_upper["dates"] = pd.to_datetime(dates)
     mid_upper = mid_upper.sort_values(by = "dates")
     mid_upper.set_index("dates", inplace = True)
