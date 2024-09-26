@@ -645,7 +645,7 @@ def fire_search(gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
     return(df_small)
 
 
-def load_large_fire(fireID, year = "2019", path_region = "WesternUS", layer='perimeter', s3_path = False):
+def load_large_fire(fireID, year = "2019", path_region = "WesternUS", layer='perimeter', s3_path = False, custom_path = False):
     '''
     loads in largefire file based on fireID and layer, then preps it for "explore" by adding centriod data. Currently limited to one year. 
     
@@ -661,11 +661,15 @@ def load_large_fire(fireID, year = "2019", path_region = "WesternUS", layer='per
         tmp = s3.glob('s3://maap-ops-workspace/shared/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/F' + fireID + '_*')
         lf_files =  ["s3://" + t for t in tmp]
     
-    else:
+    elif(custom_path == False):
         lf_files = glob.glob('/projects/shared-buckets/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/F' + fireID + '_*')
+    else:
+        lng_path = custom_path + path_region +'/'+ year +'/Largefire/' + fireID
+        print(f"reading custom path{lng_path}")
+        lf_files = glob.glob(lng_path)
         #print(lf_files)
     lf_ids = list(set([file.split('Largefire/')[1].split('_')[0] for file in lf_files])) 
-    print(lf_ids)
+    #print(lf_ids)
     largefire_dict = dict.fromkeys(lf_ids)
     
     for lf_id in lf_ids:
