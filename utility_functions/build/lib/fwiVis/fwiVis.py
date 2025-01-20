@@ -1044,8 +1044,8 @@ def ca_prov():
     
     No inputs. 
     '''
-    tmp = gpd.read_file("/projects/old_shared/fire_weather_vis/ref_data/Canadian_prov/georef-canada-province@public.geojson")
-    tmp_names = gpd.read_file("/projects/old_shared/fire_weather_vis/ref_data/Canadian_prov/georef-canada-province@public.csv")
+    tmp = gpd.read_file(f"{os.path.abspath('contextual_data')}/Canadian_prov/georef-canada-province@public.geojson")
+    tmp_names = gpd.read_file(f"{os.path.abspath('contextual_data')}/Canadian_prov/georef-canada-province@public.csv")
 
     #neon.DomainID
     tmp_names = tmp_names[['Official Name Province / Territory (English)', 'Official Name Province / Territory (French)']]
