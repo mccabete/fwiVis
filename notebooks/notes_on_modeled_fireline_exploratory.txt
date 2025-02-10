@@ -1,0 +1,61 @@
+## Data prepereation steps
+- chop of fires at end
+- create all varaibles
+- merge with CIFFC
+
+
+
+## Aspects of fires to relate to FWI
+
+- farea_diff_stand (standard)
+- farea_diff (corrected - first observation is included)
+- flinelen - length of the active fireline
+- eliisoid equations based on perimeter growth
+- ellipsoid equations based on active fire line
+- active fireline as a fracton of perimeter growth
+
+
+## Data translformations to fire aspects
+
+- square-root
+- lagged
+- logged
+- square-root + lagged
+- logged + lagged
+- rolling (?) -- leave off?
+   - diff rolling functions
+   - mean
+   - max and then drop non-uqnique vals
+   - mean of previous 3 days (same as lagged mean? I think so)
+   - mean (7 days)
+   - trend from last 3 (4?) days (increasing or decreasing)
+
+
+## FWI data transforms
+
+- anticedent conditions mean ------ mean rolling?
+- mean of X days before a given spread
+- logit model of grow/not grow FWI
+
+
+## How test? 
+- heteroskedasticity-friendly metric of performence (Spearmans's)
+- Run them all, in a tiered way.
+- Include figures that show all the corrections. / transformations. 
+- 
+- 
+
+
+
+### TO DO
+
+- flinelen_diff_stand
+- logit model for grow/no grow
+- ciffc igs %
+- The Bad Supplemental figures
+- 
+
+
+
+### CAVIATES
+- the trendline will drop the first few obs per fire, so looses those
