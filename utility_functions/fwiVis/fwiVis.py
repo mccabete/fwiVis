@@ -645,7 +645,7 @@ def fire_search(gdf, stations, dist_max_km = 112.654): # ~ 70 miles distance
     return(df_small)
 
 
-def load_large_fire(fireID, year = "2019", path_region = "WesternUS", layer='perimeter', s3_path = False, custom_path = False):
+def load_large_fire(fireID, year = "2019", path_region = "WesternUS", layer='perimeter', s3_path = False, custom_path = False, centroid = True):
     '''
     loads in largefire file based on fireID and layer, then preps it for "explore" by adding centriod data. Currently limited to one year. 
     
@@ -655,7 +655,9 @@ def load_large_fire(fireID, year = "2019", path_region = "WesternUS", layer='per
         year (str): Year that fires took place. Default to 2019. Availible options differ by path_region. 
         path_region (str): This constructs the path that the fires are stored in. WesternUS and CONUS availible. 
         layer (str): The largefire layer to load. Options are 'perimeter', 'nfplist', 'fireline', and 'newfirepix'.
-        s3_path (bool): If the path should be read in as an s3 path. Default False. Useful if hitting "transport endpoint is not connected" errors. 
+        s3_path (bool): If the path should be read in as an s3 path. Default False. Useful if hitting "transport endpoint is not connected" errors.
+        custom_path (bool): The the path should point to the mounted path on MAAP. default False. 
+        centroid (boo): If the function should automatically project fires into 4326 and generate centroid calculcations for each fire. Default true. 
     '''
     if(s3_path == True):
         tmp = s3.glob('s3://maap-ops-workspace/shared/gsfc_landslides/FEDSoutput-s3-conus/' + path_region +'/'+ year +'/Largefire/F' + fireID + '_*')
@@ -681,9 +683,10 @@ def load_large_fire(fireID, year = "2019", path_region = "WesternUS", layer='per
     else:
         gdf = pd.concat([gpd.read_file(file,layer= layer) for key, file in largefire_dict.items()], 
                        ignore_index=True)
-    gdf = gdf.to_crs('EPSG:4326')
-    gdf['lon'] = gdf.centroid.x
-    gdf['lat'] = gdf.centroid.y
+    if centroid: 
+        gdf = gdf.to_crs('EPSG:4326')
+        gdf['lon'] = gdf.centroid.x
+        gdf['lat'] = gdf.centroid.y
     return gdf
 
 def fr_st_merge(gdf, dat, sub= True, sub_type = "exact", num_months = 1, custom_date = "NA"):
