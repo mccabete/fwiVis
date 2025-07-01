@@ -1317,18 +1317,7 @@ def extinction(df, days_past = 1):
     #print(len(df[df["is_ext"] == True]))
     return(df)
 
-def formatting_read_in(path, start_time = '2023-05-31 00:00:00', end_time = '2023-09-15 12:00:00', gen_cols = True, merge_with_ciffc = True): ## Does some of the read-in functions
-    '''
-    Function to standardize the read-in process of FEDS data.
-    
-    INPUTS:
-    
-        path (str): A path to a csv dataframe with FEDS fire objects and matching FWI. 
-        start_time (str): Start of fire season
-        end_time (str): end of fire season
-        gen_cols (bool): Should formatting read-in automatically generate Fire growth analysis columns? 
-        merge_with_ciffc (bool): Should function do a spatial join with CIFFC ignition data? 
-    '''
+def formatting_read_in(path, start_time = '2023-05-31 00:00:00', end_time = '2023-09-15 12:00:00', gen_cols = True, merge_with_ciffc = False, merge_with_nbac = True): ## Does some of the read-in functions
     ### Read in
     path = os.path.abspath(path)
     fire3 = prep_fire_files(path)
@@ -1359,7 +1348,7 @@ def formatting_read_in(path, start_time = '2023-05-31 00:00:00', end_time = '202
     fire3 = fire3.drop(['prov_name_fr', 'prov_name_en', 'index_right'], axis = 1)
     fire3 = fire3[~fire3.geometry.isna()]
 
-    if(merge_with_ciffc != gen_cols):
+    if(merge_with_nbac != gen_cols):
         print("WARNING: Intersecting with CIFFC will subset fires, but will make the generation of some column variables different after the fact. It is recommended to generate variable columns BEFORE CIFFC spatial joins")
 
     if(gen_cols):
@@ -1381,6 +1370,7 @@ def formatting_read_in(path, start_time = '2023-05-31 00:00:00', end_time = '202
 
     ## subset to the ciffc data
     if(merge_with_ciffc):
+        print(" WARNING No longer merging with CIFFC due to exclusions of larger fires")
         num_fires_prev = len(fire3.fireID.unique())
         ciffc = pd.read_csv(os.path.abspath("contextual_data/CIFFC_data/ciffc_all_canada.csv"))
         ciffc = ciffc[ciffc.field_agency_code == "qc"]
@@ -1390,6 +1380,20 @@ def formatting_read_in(path, start_time = '2023-05-31 00:00:00', end_time = '202
         fire3 = fire3.sjoin(ciffc)
         num_fires_now = len(fire3.fireID.unique())
         print(f"fire3 df had {num_fires_prev} fires p, and { num_fires_now} post CIFFC ignition join")
+
+    if(merge_with_nbac):
+        nbac_only = gpd.read_file(f"{os.path.abspath('contextual_data')}/NBAC/nbac_2023_20240530.shp")
+        nbac_only = nbac_only[nbac_only.ADMIN_AREA == 'QC']
+        nbac_only  = nbac_only [(nbac_only.ADJ_HA >= 400) |(nbac_only.POLY_HA >= 400)]
+        nbac_only = nbac_only[(nbac_only.HS_SDATE <= "2023-09-15" ) |  (nbac_only.AG_SDATE <= "2023-09-15")]
+        fire3 = fire3.to_crs(nbac_only.crs)
+        fire3 = fire3.sjoin(nbac_only)
+        fire3 = fire3.drop(['YEAR', 'NFIREID', 'BASRC', 'FIREMAPS', 'FIREMAPM', 'FIRECAUS',
+       'HS_SDATE', 'HS_EDATE', 'AG_SDATE', 'AG_EDATE', 'CAPDATE', 'POLY_HA',
+       'ADJ_HA', 'ADJ_FLAG', 'ADMIN_AREA', 'NATPARK', 'PRESCRIBED', 'VERSION',
+       'GID'], axis=1)
+        fire3 = fire3.to_crs("4326")
+    
 
     ### Final sorting 
     fire3.t = fire3.t.astype("datetime64[ns]")
