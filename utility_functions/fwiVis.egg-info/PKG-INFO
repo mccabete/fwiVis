@@ -1,4 +1,4 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.4
 Name: fwiVis
 Version: 0.1
 Summary: A package to load up and visualize FWI data next to fire objects genereated from VIIRS
@@ -16,3 +16,8 @@ Requires-Dist: rasterio
 Requires-Dist: geocube
 Requires-Dist: shapely
 Requires-Dist: folium
+Dynamic: author
+Dynamic: author-email
+Dynamic: home-page
+Dynamic: requires-dist
+Dynamic: summary
