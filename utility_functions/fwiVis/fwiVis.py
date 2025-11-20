@@ -1388,10 +1388,10 @@ def formatting_read_in(path, start_time = '2023-05-31 00:00:00', end_time = '202
         nbac_only = nbac_only[(nbac_only.HS_SDATE <= "2023-09-15" ) |  (nbac_only.AG_SDATE <= "2023-09-15")]
         fire3 = fire3.to_crs(nbac_only.crs)
         fire3 = fire3.sjoin(nbac_only)
-        fire3 = fire3.drop(['YEAR', 'NFIREID', 'BASRC', 'FIREMAPS', 'FIREMAPM', 'FIRECAUS',
-       'HS_SDATE', 'HS_EDATE', 'AG_SDATE', 'AG_EDATE', 'CAPDATE', 'POLY_HA',
-       'ADJ_HA', 'ADJ_FLAG', 'ADMIN_AREA', 'NATPARK', 'PRESCRIBED', 'VERSION',
-       'GID'], axis=1)
+       #  fire3 = fire3.drop(['YEAR', 'NFIREID', 'BASRC', 'FIREMAPS', 'FIREMAPM', 'FIRECAUS',
+       # 'HS_SDATE', 'HS_EDATE', 'AG_SDATE', 'AG_EDATE', 'CAPDATE', 'POLY_HA',
+       # 'ADJ_HA', 'ADJ_FLAG', 'ADMIN_AREA', 'NATPARK', 'PRESCRIBED', 'VERSION',
+       # 'GID'], axis=1)
         fire3 = fire3.to_crs("4326")
     
 
@@ -1400,5 +1400,6 @@ def formatting_read_in(path, start_time = '2023-05-31 00:00:00', end_time = '202
     fire3 = fire3.sort_values(by = ["fireID", "t"])
     
     return(fire3)
+
 
 
