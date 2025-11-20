@@ -1317,6 +1317,14 @@ def extinction(df, days_past = 1):
     #print(len(df[df["is_ext"] == True]))
     return(df)
 
+def fix_the_first_spread_day(df, col = "spread_bool_100", thresh = 1):
+    val = df.loc[df.is_ig].farea.iloc[0]
+    if(val>= 1):
+        df.loc[df.is_ig, [col]] = 1
+    else:
+        df.loc[df.is_ig, [col]] = 0
+    return(df)
+
 def formatting_read_in(path, start_time = '2023-05-31 00:00:00', end_time = '2023-09-15 12:00:00', gen_cols = True, merge_with_ciffc = False, merge_with_nbac = True): ## Does some of the read-in functions
     ### Read in
     path = os.path.abspath(path)
@@ -1353,6 +1361,9 @@ def formatting_read_in(path, start_time = '2023-05-31 00:00:00', end_time = '202
 
     if(gen_cols):
         fire3["farea_diff_stand"] = fire3.groupby("fireID").farea.diff()
+        fire3 = fire3.groupby("fireID").apply(extinction).reset_index(drop = True)
+        fire3 = fire3.groupby("fireID").apply(just_the_igs).reset_index(drop = True)
+        
         fire3["corrected_flinelen"] = fire3.flinelen + 0.001
         ## Fireline 
         fire3["frac_change"] = fire3.groupby("fireID").farea.pct_change()
@@ -1363,8 +1374,8 @@ def formatting_read_in(path, start_time = '2023-05-31 00:00:00', end_time = '202
         fire3["spread_bool_100"] = fire3.farea_diff_stand > 1
         fire3["spread_bool_100"] = fire3["spread_bool_100"].astype("int")
         fire3.loc[:, "GEOS5_IMERGEARLY"] = fire3['GEOS-5.IMERGEARLY']
-        fire3 = fire3.groupby("fireID").apply(extinction).reset_index(drop = True)
-        fire3 = fire3.groupby("fireID").apply(just_the_igs).reset_index(drop = True)
+        fire3 = fire3.groupby('fireID').apply(fix_the_first_spread_day).reset_index(drop = True)
+
 
 
 
@@ -1387,7 +1398,8 @@ def formatting_read_in(path, start_time = '2023-05-31 00:00:00', end_time = '202
         nbac_only  = nbac_only [(nbac_only.ADJ_HA >= 400) |(nbac_only.POLY_HA >= 400)]
         nbac_only = nbac_only[(nbac_only.HS_SDATE <= "2023-09-15" ) |  (nbac_only.AG_SDATE <= "2023-09-15")]
         fire3 = fire3.to_crs(nbac_only.crs)
-        fire3 = fire3.sjoin(nbac_only)
+        fire3_tmp = fire3.sjoin(nbac_only)
+        fire3 = fire3[fire3.fireID.isin(fire3_tmp.fireID.unique())] ### Doing this instead of a normal sjoin becuase a fire lost a time-step because one time-step did not intersect with the nbac fire.
        #  fire3 = fire3.drop(['YEAR', 'NFIREID', 'BASRC', 'FIREMAPS', 'FIREMAPM', 'FIRECAUS',
        # 'HS_SDATE', 'HS_EDATE', 'AG_SDATE', 'AG_EDATE', 'CAPDATE', 'POLY_HA',
        # 'ADJ_HA', 'ADJ_FLAG', 'ADMIN_AREA', 'NATPARK', 'PRESCRIBED', 'VERSION',
